@@ -178,7 +178,7 @@ footer a{color:var(--accent)}
 <header>
   <button class="themebtn" id="tt">◐ Theme</button>
   <h1>Dine Out Lauderdale 2026 — <span class="accent">decoded</span></h1>
-  <p class="sub" id="subline">Every prix fixe dish priced against the restaurant's regular menu, portion-adjusted, across all 16 Dine Out categories.</p>
+  <p class="sub" id="subline">Every fixed-price menu priced dish by dish against the restaurant's own everyday menu, so you can tell which deals save you real money.</p>
 </header>
 <div class="wave"></div>
 <div class="controls">
@@ -425,9 +425,9 @@ const S={q:'',city:[],category:[],meal:'',price:'',day:'',sort:'pct',worth:false
 const VRANK={safe:0,pick:1,marginal:2,skip:3,nomenu:4};
 function updateLede(){
   const restCount=new Set(DATA.map(d=>d.restaurant)).size;
-  const catCount=new Set(DATA.flatMap(d=>d.category||[])).size;
+  const menuCount=DATA.filter(d=>d.verdict!=='nomenu').length;
   document.getElementById('subline').textContent=
-    `${restCount} restaurants across ${catCount} Dine Out categories, August 1 – September 30. Every prix fixe dish priced against the restaurant's regular menu, portion-adjusted.`;
+    `${menuCount} fixed-price menus from ${restCount} restaurants, every dish priced against the restaurant's own everyday menu, so you can tell which deals save you real money and what to order when you go.`;
 }
 updateLede();
 function render(){
