@@ -57,9 +57,6 @@ h1 .accent{color:var(--accent)}
 input[type=search],select{font-family:inherit;font-size:13px;padding:7px 10px;border-radius:8px;
   border:1px solid var(--ring);background:var(--card);color:var(--ink)}
 input[type=search]{min-width:210px}
-.chip{font-size:12.5px;padding:6px 11px;border-radius:999px;border:1px solid var(--ring);
-  background:var(--card);color:var(--ink-2);cursor:pointer;font-family:inherit}
-.chip[aria-pressed=true]{background:var(--navy);color:#fff;border-color:var(--navy)}
 .count{font-size:13px;color:var(--muted);margin-left:auto}
 .ms{position:relative}
 .msbtn{font-family:inherit;font-size:13px;padding:7px 10px;border-radius:8px;cursor:pointer;
@@ -203,10 +200,6 @@ footer a{color:var(--accent)}
       <option value="value">Biggest dollar savings</option>
       <option value="name">A–Z</option>
     </select>
-    <button class="chip" id="safe" aria-pressed="false">Can't go wrong</button>
-    <button class="chip" id="worth" aria-pressed="false">Hide the duds</button>
-    <button class="chip" id="ver" aria-pressed="false">Verified prices only</button>
-    <button class="chip" id="pp" aria-pressed="false" title="Show the two dinner-for-two tiers as price per person">Per person</button>
     <span class="count" id="count"></span>
   </div>
 </div>
@@ -311,9 +304,7 @@ const mapsUrl=d=>'https://www.google.com/maps/search/?api=1&query='+encodeURICom
 
 let cardSeq=0;
 function card(d0){
-  // "Per person" halves the money on the two dinner-for-two tiers so they compare like-for-like
-  const half=S.pp&&d0.for2;
-  const d=half?Object.assign({},d0,{tier:d0.tier/2,best:d0.best/2,worst:d0.worst/2}):d0;
+  const d=d0;
   const g=d.gloss||{};
   const cid='c'+(cardSeq++);
   const catpills=(d.category||[]).map(c=>`<span class="catpill">${esc(c)}</span>`).join('');
@@ -366,7 +357,7 @@ function card(d0){
        ${locLine}
        ${hoursLine}
        ${dayStrip}</div>
-     <div class="tier"><div class="tierp">${money(d.tier)}</div><div class="tierm">${esc(d.meal)}${d.for2?(half?' / person':' for 2'):''}</div></div>
+     <div class="tier"><div class="tierp">${money(d.tier)}</div><div class="tierm">${esc(d.meal)}${d.for2?' for 2':''}</div></div>
    </div>
    <div class="vrow">
      <span class="verdict v-${d.verdict}">${ICON[d.verdict]} ${LABEL[d.verdict]}</span>
@@ -385,7 +376,7 @@ function card(d0){
      <div class="fullmenu">${menuHtml}${incMenu}</div>
    </div>
    <div class="bar">
-     <div class="barlab"><span>You pay <b style="color:var(--ink)">${money(d.tier)}</b>${d.for2?(half?' per person':' (for two)'):''}</span>
+     <div class="barlab"><span>You pay <b style="color:var(--ink)">${money(d.tier)}</b>${d.for2?' (for two)':''}</span>
        <span>${d.best===d.worst
          ? `Food worth <b style="color:var(--ink)">${money(d.best)}</b>`
          : `Food worth <b style="color:var(--ink)">${money(d.worst)}–${money(d.best)}</b>`}</span></div>
@@ -406,7 +397,6 @@ function card(d0){
         : `Order as recommended and it's <b>${money(d.best)}</b>; pick the cheapest option each course and it falls to <b>${money(d.worst)}</b>, below what you paid.`}</div>
      ${d.courses_n>0&&d.courses_n<3?`<div class="barnote" style="margin-top:6px">Note: only ${d.courses_n} course${d.courses_n===1?'':'s'} ${d.courses_n===1?'was':'were'} published for this tier${d.courses_n===2?' — no dessert listed':''}.</div>`:''}
      ${d.best>d.tier*2?`<div class="barnote" style="margin-top:6px">The bar tops out at ${money(d.tier*2)} (twice what you pay); this menu runs past the end of it.</div>`:''}
-     ${half?`<div class="barnote" style="margin-top:6px">Per-person view: the pay and worth figures are halved; individual dish prices shown are full à la carte prices.</div>`:''}
    </div>
    <div class="conf"><i class="dot d-${d.confidence}"></i>${esc(CONFLAB[d.confidence])}</div>
   </article>`;
@@ -421,7 +411,7 @@ document.getElementById('grid').addEventListener('click', e=>{
   document.querySelectorAll(`.tabpane[data-card="${cid}"]`).forEach(p=>{ p.hidden = p.dataset.pane!==tab; });
 });
 
-const S={q:'',city:[],category:[],meal:'',price:'',day:'',sort:'pct',worth:false,ver:false,safe:false,pp:false};
+const S={q:'',city:[],category:[],meal:'',price:'',day:'',sort:'pct'};
 const VRANK={safe:0,pick:1,marginal:2,skip:3,nomenu:4};
 function updateLede(){
   const restCount=new Set(DATA.map(d=>d.restaurant)).size;
@@ -440,9 +430,6 @@ function render(){
       const ok = S.day==='we' ? (d.days.includes(5)||d.days.includes(6)) : d.days.includes(+S.day);
       if(!ok)return false;
     }
-    if(S.worth&&!(d.verdict==='safe'||d.verdict==='pick'))return false;
-    if(S.safe&&d.verdict!=='safe')return false;
-    if(S.ver&&d.confidence!=='verified')return false;
     if(S.q){
       const hay=(d.restaurant+' '+d.cuisine+' '+d.blurb+' '+(d.category||[]).join(' ')+' '+Object.values(d.menu||{}).flat().map(o=>o.dish).join(' ')).toLowerCase();
       if(!hay.includes(S.q.toLowerCase()))return false;
@@ -464,8 +451,6 @@ function render(){
 }
 const bind=(id,k)=>document.getElementById(id).addEventListener('input',e=>{S[k]=e.target.value;render()});
 bind('q','q');bind('meal','meal');bind('price','price');bind('day','day');bind('sort','sort');
-['worth','ver','safe','pp'].forEach(id=>document.getElementById(id).addEventListener('click',e=>{
-  S[id]=!S[id];e.target.setAttribute('aria-pressed',S[id]);render()}));
 document.getElementById('tt').addEventListener('click',()=>{
   const cur=document.documentElement.getAttribute('data-theme');
   const dark=cur?cur==='dark':matchMedia('(prefers-color-scheme: dark)').matches;
