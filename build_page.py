@@ -83,10 +83,11 @@ input[type=search]{min-width:210px}
 .msopt:hover{background:var(--plane)}
 .msopt input{margin:0;flex:0 0 auto;accent-color:var(--accent)}
 .mshint{font-size:11px;color:var(--muted);padding:5px 7px 2px;line-height:1.35}
+@media(max-width:600px){.ms{position:static}.mspanel{left:14px;right:14px;min-width:0}}
 .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(430px,1fr))}
 @media(max-width:920px){.grid{grid-template-columns:1fr}}
 .card{background:var(--card);border:1px solid var(--ring);border-radius:14px;padding:18px 18px 14px;
-  display:flex;flex-direction:column;gap:11px;box-shadow:0 1px 2px rgba(20,34,53,.04)}
+  display:flex;flex-direction:column;gap:11px;box-shadow:0 1px 2px rgba(20,34,53,.04);min-width:0}
 .chead{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
 .rname{font-size:17px;font-weight:700;letter-spacing:-.01em;margin:0;line-height:1.25}
 .catpill{display:inline-block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
@@ -135,21 +136,21 @@ a.addr:hover{color:var(--accent);text-decoration:underline}
   font-weight:650;margin-bottom:7px}
 .oline{display:flex;gap:7px;align-items:baseline;font-size:13.5px;margin-bottom:4px}
 .ocourse{flex:0 0 62px;color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.04em}
-.odish{font-weight:600;color:var(--ink)}
+.odish{font-weight:600;color:var(--ink);min-width:0;overflow-wrap:anywhere}
 .ogloss{font-size:12.5px;color:var(--ink-2);margin:1px 0 7px 69px;line-height:1.42}
-.osrc{font-size:11px;color:var(--muted);margin:0 0 7px 69px;line-height:1.4;font-style:italic}
+.osrc{font-size:11px;color:var(--muted);margin:0 0 7px 69px;line-height:1.4;font-style:italic;overflow-wrap:anywhere}
 .fullmenu{background:var(--plane);border-radius:9px;padding:12px 13px}
 .course{margin-top:0}
 .course+.course{margin-top:12px}
 .chdr{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);
   font-weight:650;border-bottom:1px solid var(--grid);padding-bottom:4px;margin-bottom:7px}
 .opt{display:flex;justify-content:space-between;gap:10px;align-items:baseline;padding:4px 0}
-.optname{font-size:13.5px}
+.optname{font-size:13.5px;min-width:0;overflow-wrap:anywhere}
 .best{font-weight:650}
 .star{color:var(--warning);font-size:11px}
 .optprice{font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums;flex:0 0 auto}
 .gl{font-size:12.5px;color:var(--ink-2);margin:2px 0 4px 0;line-height:1.42}
-.src{font-size:11px;color:var(--muted);margin:-2px 0 4px 0;line-height:1.4;font-style:italic}
+.src{font-size:11px;color:var(--muted);margin:-2px 0 4px 0;line-height:1.4;font-style:italic;overflow-wrap:anywhere}
 .bar{margin-top:2px}
 .barlab{display:flex;justify-content:space-between;font-size:12px;color:var(--ink-2);margin-bottom:5px}
 .track{position:relative;height:12px;background:var(--grid);border-radius:4px;overflow:visible}
@@ -202,7 +203,7 @@ footer a{color:var(--accent)}
     <select id="sort">
       <option value="pct">Best value first</option>
       <option value="tier">Cheapest first</option>
-      <option value="value">Most food for the money</option>
+      <option value="value">Biggest dollar savings</option>
       <option value="name">A–Z</option>
     </select>
     <button class="chip" id="safe" aria-pressed="false">Can't go wrong</button>
@@ -393,7 +394,7 @@ function card(d0){
          : `Food worth <b style="color:var(--ink)">${money(d.worst)}–${money(d.best)}</b>`}</span></div>
      <div class="savings">${savingsLine(d)}</div>
      <div class="track">
-       <div class="fill" style="left:${L.toFixed(1)}%;width:${Math.max(R-L,1.2).toFixed(1)}%;background:${bandcol}"></div>
+       <div class="fill" style="left:${Math.min(L,100-Math.max(R-L,1.2)).toFixed(1)}%;width:${Math.max(R-L,1.2).toFixed(1)}%;background:${bandcol}"></div>
        <div class="tick" style="left:50%"></div>
        <div class="ticklab e0">${money(0)}</div>
        <div class="ticklab" style="left:50%">what you pay</div>
@@ -406,8 +407,9 @@ function card(d0){
         : d.verdict==='skip'
         ? `Even the priciest combination comes to <b>${money(d.best)}</b>, under the <b>${money(d.tier)}</b> you pay.`
         : `Order as recommended and it's <b>${money(d.best)}</b>; pick the cheapest option each course and it falls to <b>${money(d.worst)}</b>, below what you paid.`}</div>
-     ${d.courses_n>0&&d.courses_n<3?`<div class="barnote" style="margin-top:6px">Note: only ${d.courses_n} courses were published for this tier${d.courses_n===2?' — no dessert listed':''}.</div>`:''}
+     ${d.courses_n>0&&d.courses_n<3?`<div class="barnote" style="margin-top:6px">Note: only ${d.courses_n} course${d.courses_n===1?'':'s'} ${d.courses_n===1?'was':'were'} published for this tier${d.courses_n===2?' — no dessert listed':''}.</div>`:''}
      ${d.best>d.tier*2?`<div class="barnote" style="margin-top:6px">The bar tops out at ${money(d.tier*2)} (twice what you pay); this menu runs past the end of it.</div>`:''}
+     ${half?`<div class="barnote" style="margin-top:6px">Per-person view: the pay and worth figures are halved; individual dish prices shown are full à la carte prices.</div>`:''}
    </div>
    <div class="conf"><i class="dot d-${d.confidence}"></i>${esc(CONFLAB[d.confidence])}</div>
   </article>`;
@@ -455,7 +457,7 @@ function render(){
   rest.sort((a,b)=>
       S.sort==='pct'   ? VRANK[a.verdict]-VRANK[b.verdict] || surplus(b)-surplus(a)
     : S.sort==='tier'  ? a.tier-b.tier || VRANK[a.verdict]-VRANK[b.verdict]
-    : S.sort==='value' ? b.best-a.best
+    : S.sort==='value' ? (b.best-b.tier)-(a.best-a.tier)
     : a.restaurant.localeCompare(b.restaurant));
   r=rest.concat(nomenu);
   document.getElementById('grid').innerHTML=r.length?r.map(card).join(''):'<div class="empty">Nothing matches those filters.</div>';
