@@ -23,6 +23,7 @@ BUILD_DATE = date.today().strftime('%B %d, %Y').replace(' 0', ' ')
 HTML = r'''<!DOCTYPE html>
 <html lang="en" data-theme="light"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='46' fill='%23FFD56B'/%3E%3Cg stroke='%231E67CD' stroke-width='7.5' stroke-linecap='round' fill='none'%3E%3Cpath d='M18 56 q8 -9 16 0 t16 0 t16 0 t16 0'/%3E%3Cpath d='M22 70 q8 -9 16 0 t16 0 t16 0'/%3E%3Cpath d='M30 84 q8 -9 16 0 t16 0'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,700;12..96,75..100,800&family=Nata+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <title>Dine Out Lauderdale 2026 — decoded</title>

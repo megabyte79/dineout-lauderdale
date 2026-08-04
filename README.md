@@ -19,6 +19,7 @@ first, that is the confusing part. The actual source is small:
 | `payload.json` | The data. One entry per restaurant *and* meal tier, so a place doing both lunch and dinner has two entries. |
 | `build_page.py` | The generator. Reads `payload.json`, writes the page. |
 | `recompute.py` | The scoring rules (best/worst/verdict/confidence). Also a checker. |
+| `report.html` | The "spot an error" page. Posts into a Google Form, no account needed. |
 | `index.html` | Generated output. Do not edit by hand. |
 
 ## Building
@@ -42,25 +43,32 @@ commit; it has already caught confidence badges that were stale after hand edits
 ## How the value number works
 
 Each course lists several options at different everyday prices, so a prix fixe
-menu does not have one value, it has a range:
+menu does not have one value, it has a range. A dish that carries a supplement
+(say +$12 on top of the fixed price) only counts for its price minus the
+supplement, since that is what it is worth *toward* the base price:
 
-- **best** is the sum of the most expensive option in each course
-- **worst** is the sum of the cheapest option in each course
+- **best** is the sum of the highest net-value option in each course
+- **worst** is the sum of the lowest
 
-Both are compared against **tier**, the advertised price. That produces the verdict:
+A course that hands you two picks sums two, and a tier priced for two people
+(Bodega's $60 "Dinner for Two") counts two full menus. Both are compared
+against **tier**, the advertised price. That produces the verdict:
 
 | Verdict | Rule | Meaning |
 |---|---|---|
 | `safe` | `worst >= tier` | Every combination beats the price |
 | `pick` | `best >= tier * 1.15` | Worth it if you order well |
 | `marginal` | otherwise | Close either way |
+| `even` | `best` within 3% of `tier` | At best you break even, so go for the food, not the discount |
 | `skip` | `best < tier` | Even the priciest order loses |
+| `party` | listing says "for 2" but not what that buys | Shown, but not scored, guessing would publish a coin flip |
 | `nomenu` | no menu published | Nothing to score |
 
 Prices are portion adjusted. A 4 piece appetizer on the prix fixe is priced
 against a 4 piece share of the restaurant's regular 8 piece order, not the whole
-thing. Figures are before tax and tip. Paid upgrades are excluded; genuinely
-included drinks and sides are counted.
+thing. Figures are before tax and tip. Genuinely included drinks and sides are
+counted. An upgrade whose regular price is unknown (the listing gives only the
+upcharge) is shown on the card but left out of the math entirely.
 
 ### Two things that are easy to get wrong
 
@@ -86,6 +94,14 @@ trust it:
 Rolled up per menu: **verified** (no LOW prices), **estimated** (no HIGH prices),
 **mixed** (some of each). Each dish also stores the source it came from, shown
 under the dish on the card.
+
+## Spot an error?
+
+Every card links to [the report page](https://megabyte79.github.io/dineout-lauderdale/report.html),
+which takes thirty seconds and needs no account. Upcharges that only appear at
+the table are invisible to any menu research, so readers are the only way those
+ever get found. The full history of corrections is in the
+[commit log](https://github.com/megabyte79/dineout-lauderdale/commits/main).
 
 ## Caveats
 
