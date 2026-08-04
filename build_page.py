@@ -173,11 +173,6 @@ a.addr:hover{color:var(--accent);text-decoration:underline}
   padding:7px 10px;margin-top:2px;line-height:1.45}
 .upgnote b{color:var(--ink)}
 .v-est{border-style:dashed !important}
-.alink{opacity:0;margin-left:7px;font-size:12.5px;color:var(--muted);text-decoration:none;
-  transition:opacity .12s;cursor:pointer;border:none;background:none;padding:0;font-family:inherit}
-.card:hover .alink,.alink:focus{opacity:1}
-.alink:hover{color:var(--accent)}
-.alink.done{opacity:1;color:var(--good)}
 :target.card{outline:3px solid var(--accent);outline-offset:3px}
 .gl{font-size:12.5px;color:var(--ink-2);margin:2px 0 4px 0;line-height:1.42}
 .src{font-size:11px;color:var(--muted);margin:-2px 0 4px 0;line-height:1.4;font-style:italic;overflow-wrap:anywhere}
@@ -400,7 +395,9 @@ function card(d0){
   const g=d.gloss||{};
   const cid='c'+(cardSeq++);
   const catpills=(d.category||[]).map(c=>`<span class="catpill">${esc(c)}</span>`).join('');
-  const locLine=`<div class="loc">${d.url?`<a class="ext" href="${esc(d.url)}" target="_blank" rel="noopener">Menu &amp; details ↗</a> · `:''}<a class="addr" href="${esc(mapsUrl(d))}" target="_blank" rel="noopener" title="Open in Google Maps">${esc([d.city,d.address].filter(Boolean).join(' · ')||'Map')}</a></div>`;
+  // Link straight to the restaurant's own site; the Dine Out listing adds nothing
+  // we don't already show, and "Menu & details" competed with our own menu tab.
+  const locLine=`<div class="loc">${d.site?`<a class="ext" href="${esc(d.site)}" target="_blank" rel="noopener">Website ↗</a> · `:''}<a class="addr" href="${esc(mapsUrl(d))}" target="_blank" rel="noopener" title="Open in Google Maps">${esc([d.city,d.address].filter(Boolean).join(' · ')||'Map')}</a></div>`;
   if(d.verdict==='nomenu'){
     return `<article class="card"><div class="chead"><div>
       <h2 class="rname">${esc(d.restaurant)}</h2>
@@ -448,7 +445,7 @@ function card(d0){
   const anchor=slug(d.restaurant+'-'+d.meal);
   return `<article class="card" id="${anchor}">
    <div class="chead">
-     <div><h2 class="rname">${esc(d.restaurant)}<button class="alink" data-anchor="${anchor}" title="Copy a link to this restaurant" aria-label="Copy link to ${esc(d.restaurant)}">&#128279;</button></h2>
+     <div><h2 class="rname">${esc(d.restaurant)}</h2>
        <div>${catpills}</div>
        <div class="cuisine">${esc(d.cuisine)}</div>
        ${locLine}
@@ -501,15 +498,6 @@ function card(d0){
 }
 
 document.getElementById('grid').addEventListener('click', e=>{
-  const a=e.target.closest('.alink');
-  if(a){
-    const url=location.origin+location.pathname+'#'+a.dataset.anchor;
-    const done=()=>{a.classList.add('done');a.innerHTML='&#10003;';
-      setTimeout(()=>{a.classList.remove('done');a.innerHTML='&#128279;'},1400)};
-    if(navigator.clipboard){navigator.clipboard.writeText(url).then(done).catch(()=>{location.hash=a.dataset.anchor})}
-    else{location.hash=a.dataset.anchor}
-    return;
-  }
   const btn=e.target.closest('.tabbtn');
   if(!btn) return;
   const cid=btn.closest('.tabs').dataset.card;
