@@ -232,10 +232,12 @@ footer a{color:var(--accent)}
     </select>
     <select id="price"><option value="">Any price</option><option>35</option><option>45</option><option>60</option><option>75</option></select>
     <select id="sort">
-      <option value="pct">Best value first</option>
+      <option value="pct">Best value (by %)</option>
+      <option value="value">Biggest savings (by $)</option>
       <option value="tier">Cheapest first</option>
-      <option value="value">Biggest dollar savings</option>
+      <option value="verified">Verified prices first</option>
       <option value="name">A–Z</option>
+      <option value="rand">Surprise me</option>
     </select>
     <span class="count" id="count"></span>
   </div>
@@ -517,6 +519,11 @@ document.getElementById('grid').addEventListener('click', e=>{
 });
 
 const VRANK={safe:0,pick:1,marginal:2,skip:3,nomenu:4};
+const CRANK={verified:0,mixed:1,estimated:2,none:3};
+// "Surprise me" reshuffles each time it is picked, so the order is genuinely
+// different rather than a fixed alternative ranking.
+let shuf=new Map();
+const reshuffle=()=>{shuf=new Map(DATA.map(d=>[d.restaurant+d.meal,Math.random()]))};
 function updateLede(){
   const restCount=new Set(DATA.map(d=>d.restaurant)).size;
   const menuCount=DATA.filter(d=>d.verdict!=='nomenu').length;
@@ -543,9 +550,12 @@ function render(){
   const nomenu=r.filter(d=>d.verdict==='nomenu'), rest=r.filter(d=>d.verdict!=='nomenu');
   const surplus=x=>(x.best-x.tier)/x.tier;
   rest.sort((a,b)=>
-      S.sort==='pct'   ? VRANK[a.verdict]-VRANK[b.verdict] || surplus(b)-surplus(a)
-    : S.sort==='tier'  ? a.tier-b.tier || VRANK[a.verdict]-VRANK[b.verdict]
-    : S.sort==='value' ? (b.best-b.tier)-(a.best-a.tier)
+      S.sort==='pct'      ? VRANK[a.verdict]-VRANK[b.verdict] || surplus(b)-surplus(a)
+    : S.sort==='tier'     ? a.tier-b.tier || VRANK[a.verdict]-VRANK[b.verdict]
+    : S.sort==='value'    ? (b.best-b.tier)-(a.best-a.tier)
+    // trust first: fully verified, then partly, then benchmarked; best value inside each band
+    : S.sort==='verified' ? CRANK[a.confidence]-CRANK[b.confidence] || surplus(b)-surplus(a)
+    : S.sort==='rand'     ? (shuf.get(a.restaurant+a.meal)-shuf.get(b.restaurant+b.meal))
     : a.restaurant.localeCompare(b.restaurant));
   r=rest.concat(nomenu);
   document.getElementById('grid').innerHTML=r.length?r.map(card).join(''):'<div class="empty">Nothing matches those filters.</div>';
@@ -556,6 +566,7 @@ function render(){
 }
 const bind=(id,k)=>document.getElementById(id).addEventListener('input',e=>{S[k]=e.target.value;render()});
 bind('q','q');bind('meal','meal');bind('price','price');bind('day','day');bind('sort','sort');
+document.getElementById('sort').addEventListener('change',e=>{if(e.target.value==='rand'){reshuffle();render()}});
 // Light is the default for everyone. Dark is opt-in and remembered.
 const themeBtn=document.getElementById('tt');
 const applyTheme=t=>{
@@ -570,6 +581,7 @@ themeBtn.addEventListener('click',()=>{
   applyTheme(next);
   try{localStorage.setItem('dol-theme',next)}catch(_){}
 });
+reshuffle();
 render();
 </script></body></html>'''
 
