@@ -185,6 +185,24 @@ a.addr:hover{color:var(--accent);text-decoration:underline}
 .ticklab{position:absolute;top:14px;font-size:10.5px;color:var(--muted);transform:translateX(-50%);white-space:nowrap}
 .ticklab.e0{left:0;transform:none}
 .ticklab.e1{left:auto;right:0;transform:none}
+.opt.pickable{cursor:pointer;border-radius:9px;padding:6px 8px;margin:0 -8px;
+  border:1px solid transparent;transition:background .12s,border-color .12s}
+.opt.pickable:hover{background:var(--card)}
+.opt.pickable.on{background:rgba(30,103,205,.09);border-color:rgba(30,103,205,.35)}
+.opt.pickable:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.mark{display:inline-block;width:13px;height:13px;border-radius:50%;border:2px solid var(--ring);
+  margin-right:7px;vertical-align:-1px}
+.opt.on .mark{border-color:var(--accent);
+  background:radial-gradient(circle at 50% 50%,var(--accent) 0 3.5px,transparent 3.5px)}
+.bhint{font-size:12px;color:var(--muted);margin:-2px 0 10px}
+.bsum{margin-top:12px;padding-top:11px;border-top:1px solid var(--grid);font-size:13.5px;
+  color:var(--ink-2);display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.bsum b{color:var(--ink);font-weight:700}
+.bsum .up{color:var(--good)} .bsum .dn{color:var(--critical)}
+.breset{background:none;border:none;color:var(--accent);font-family:inherit;font-size:12px;
+  font-weight:650;cursor:pointer;padding:0;text-decoration:underline;white-space:nowrap}
+.you{position:absolute;top:-6px;bottom:-6px;width:3px;background:var(--accent);border-radius:2px;
+  box-shadow:0 0 0 2px var(--card)}
 .savings{font-size:13.5px;color:var(--ink-2);margin:0 0 8px;line-height:1.4}
 .savings b{font-weight:700}
 .savings .up{color:var(--good)} .savings .dn{color:var(--critical)} .savings .ev{color:var(--ink)}
@@ -395,6 +413,52 @@ const savingsLine=d=>{
 
 const mapsUrl=d=>'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(d.restaurant+' '+(d.address||'')+' '+(d.city||'')+' FL');
 
+/* ---------------------------------------------------------------- builder ---
+   The full-menu tab is interactive: tap a dish to swap it into your meal and
+   the total, the savings line and the marker on the bar all move.
+
+   Selections live in a Map outside the DOM because changing a filter rebuilds
+   the entire grid, and losing a half-built meal to an unrelated click would be
+   maddening. `touched` records whether the reader has actually chosen anything,
+   so an untouched card keeps showing the honest best-to-worst range instead of
+   quietly presenting our own recommendation as if it were their choice. */
+const SEL=new Map(), TOUCHED=new Set(), DBY=new Map();
+const anchorOf=d=>slug(d.restaurant+'-'+d.meal);
+
+// Courses the builder walks. `pick` false means every item is served rather
+// than chosen between, so they all count and none of them are clickable.
+const bCourses=d=>{
+  const cs=courseOrder(Object.keys(d.menu||{}).filter(c=>d.menu[c]&&d.menu[c].length))
+    .map(c=>({key:c,label:nameOf(c),opts:d.menu[c],k:(d.choose&&d.choose[c])||1,pick:true}));
+  const inc=d.included||[];
+  if(inc.length) cs.push({key:'__inc',label:'Included',opts:inc,k:1,pick:d.included_mode==='choose'});
+  return cs;
+};
+const defaultSel=d=>{
+  const o={};
+  for(const c of bCourses(d)) if(c.pick) o[c.key]=c.opts.slice(0,Math.min(c.k,c.opts.length)).map((_,i)=>i);
+  return o;
+};
+const selOf=d=>{const a=anchorOf(d); if(!SEL.has(a)) SEL.set(a,defaultSel(d)); return SEL.get(a)};
+const bTotal=(d,sel)=>{
+  let t=0;
+  for(const c of bCourses(d)){
+    if(!c.pick){ t+=c.opts.reduce((s,o)=>s+netOf(o),0); continue; }
+    for(const i of (sel[c.key]||[])) if(c.opts[i]) t+=netOf(c.opts[i]);
+  }
+  return Math.round(t*(d.covers||1)*100)/100;
+};
+// What the reader's own meal is worth against what they pay. Party-priced
+// tiers get no figure here for the same reason they get no verdict.
+const bLine=(d,total)=>{
+  if(d.verdict==='party') return `Your picks come to <b>${money(total)}</b> per person. This tier is priced for a party, so that doesn't compare to the ${money(d.tier)}.`;
+  const diff=total-d.tier;
+  if(Math.abs(diff)<0.005) return `Your meal: <b>${money(total)}</b> — exactly what you pay.`;
+  return diff>0
+    ? `Your meal: <b>${money(total)}</b> — <b class="up">you save ${money(diff)}</b>.`
+    : `Your meal: <b>${money(total)}</b> — <b class="dn">you pay ${money(-diff)} over</b>.`;
+};
+
 let cardSeq=0;
 function card(d0){
   const d=d0;
@@ -434,27 +498,33 @@ function card(d0){
   const L=sc(d.worst), R=sc(d.best);
   const bandcol=d.verdict==='safe'?'var(--good)':d.verdict==='skip'?'var(--critical)'
     :(d.verdict==='even'||d.verdict==='party')?'var(--muted)':'var(--accent)';
-  const menuHtml=courses.map(c=>{
-    const k=(d.choose&&d.choose[c])||1;
-    const opts=d.menu[c].map((o,i)=>{
-      const gl=g[o.dish]; const sr=srcOf(o);
-      const po=portionOf(o);
-      return `<div class="opt"><span class="optname ${i<k?'best':''}">${i<k?'<span class="star">★</span> ':''}${esc(short(o.dish))}${upgChip(o)}</span>`
+  const sel=selOf(d);
+  const menuHtml=bCourses(d).map(c=>{
+    const on=new Set(sel[c.key]||[]);
+    const recN=c.pick?Math.min(c.k,c.opts.length):0;
+    const opts=c.opts.map((o,i)=>{
+      const gl=g[o.dish], sr=srcOf(o), po=portionOf(o);
+      const chosen=c.pick?on.has(i):true;
+      return `<div class="opt${c.pick?' pickable':''}${chosen?' on':''}"`
+        +(c.pick?` data-c="${esc(c.key)}" data-i="${i}" role="button" tabindex="0" aria-pressed="${chosen}"`:'')
+        +`><span class="optname">${c.pick?'<span class="mark"></span>':''}`
+        +`${i<recN?'<span class="star" title="our recommendation">★</span> ':''}${esc(short(o.dish))}${upgChip(o)}</span>`
         +`<span class="optprice">${money(o.price)}</span></div>`
         +(gl?`<div class="gl">${esc(gl)}</div>`:'')
         +(po?`<div class="portion">Portion: ${esc(po)}</div>`:'')
         +(sr?`<div class="src">Source: ${esc(sr)}</div>`:'');
     }).join('');
-    return `<div class="course"><div class="chdr">${esc(nameOf(c))} — choose ${k===1?'one':k===2?'two':k}</div>${opts}</div>`;
+    const hdr=c.pick?` — choose ${c.k===1?'one':c.k===2?'two':c.k}`:' — all served';
+    return `<div class="course"><div class="chdr">${esc(c.label)}${hdr}</div>${opts}</div>`;
   }).join('');
-  const incMenu=(d.included||[]).length?`<div class="course"><div class="chdr">Included${d.included_mode==='choose'?' — choose one':''}</div>`
-    + d.included.map(o=>`<div class="opt"><span class="optname">${esc(short(o.dish))}</span><span class="optprice">${money(o.price)}</span></div>`).join('')+`</div>`:'';
+  const anyPick=bCourses(d).some(c=>c.pick&&c.opts.length>1);
   const hoursLine=d.hours?`<div class="hours"><span class="ic">🕒</span>${esc(d.hours)}</div>`:'';
   const DAYL=['M','T','W','T','F','S','S'];
   const dayStrip = d.days
     ? `<div class="daystrip" title="Days this special is served">${DAYL.map((L,i)=>`<span class="dchip ${d.days.includes(i)?'on':''}">${L}</span>`).join('')}</div>`
     : `<div class="daystrip" title="The restaurant did not publish serving days"><span class="dnote" style="margin-left:0">Serving days not published — call ahead</span></div>`;
-  const anchor=slug(d.restaurant+'-'+d.meal);
+  const anchor=anchorOf(d);
+  DBY.set(anchor,d);
   return `<article class="card" id="${anchor}">
    <div class="chead">
      <div><h2 class="rname">${esc(d.restaurant)}</h2>
@@ -474,13 +544,17 @@ function card(d0){
    ${d.heads_up?`<div class="heads"><b>Heads up:</b> ${esc(d.heads_up)}</div>`:''}
    <div class="tabs" data-card="${cid}">
      <button class="tabbtn active" data-tab="order">${d.verdict==='skip'?'If you go anyway, order this':'Order this'}</button>
-     <button class="tabbtn" data-tab="full">Full menu &amp; prices</button>
+     <button class="tabbtn" data-tab="full">${anyPick?'Build your meal':'Full menu &amp; prices'}</button>
    </div>
    <div class="tabpane" data-card="${cid}" data-pane="order">
      <div class="order">${orderLines}${inc}</div>
    </div>
    <div class="tabpane" data-card="${cid}" data-pane="full" hidden>
-     <div class="fullmenu">${menuHtml}${incMenu}</div>
+     <div class="fullmenu">
+       ${anyPick?`<div class="bhint">Tap any dish to swap it into your meal. ★ is what we'd order.</div>`:''}
+       ${menuHtml}
+       <div class="bsum"><span class="bmine">${bLine(d,bTotal(d,sel))}</span>${anyPick?'<button class="breset" hidden>Reset to our pick</button>':''}</div>
+     </div>
    </div>
    <div class="bar">
      <div class="barlab"><span>You pay <b style="color:var(--ink)">${money(d.tier)}</b>${d.for2?' (for two)':''}</span>
@@ -491,6 +565,7 @@ function card(d0){
      <div class="track">
        <div class="fill" style="left:${Math.min(L,100-Math.max(R-L,1.2)).toFixed(1)}%;width:${Math.max(R-L,1.2).toFixed(1)}%;background:${bandcol}"></div>
        <div class="tick" style="left:50%"></div>
+       <div class="you" hidden title="Your picks"></div>
        <div class="ticklab e0">${money(0)}</div>
        <div class="ticklab" style="left:50%">what you pay</div>
        <div class="ticklab e1">${money(d.tier*2)}</div>
@@ -514,7 +589,68 @@ function card(d0){
   </article>`;
 }
 
+/* Repaint everything a selection change touches: the radio marks, the running
+   total under the menu, the marker on the bar, and the savings line. The
+   savings line only becomes personal once the reader has actually picked
+   something; until then it keeps showing the honest best-to-worst range. */
+function paintBuild(a){
+  const d=DBY.get(a), cardEl=document.getElementById(a);
+  if(!d||!cardEl) return;
+  const sel=selOf(d), total=bTotal(d,sel), touched=TOUCHED.has(a);
+  cardEl.querySelectorAll('.opt.pickable').forEach(el=>{
+    const on=(sel[el.dataset.c]||[]).includes(+el.dataset.i);
+    el.classList.toggle('on',on); el.setAttribute('aria-pressed',String(on));
+  });
+  const mine=cardEl.querySelector('.bmine');
+  if(mine) mine.innerHTML=bLine(d,total);
+  const btn=cardEl.querySelector('.breset');
+  if(btn) btn.hidden=!touched;
+  const you=cardEl.querySelector('.you');
+  if(you){
+    // A party-priced total has no meaningful position against the tier, so the
+    // marker stays off rather than implying a comparison we just disclaimed.
+    you.hidden=!touched||d.verdict==='party';
+    you.style.left=(Math.max(0,Math.min(total/(d.tier*2),1))*100).toFixed(1)+'%';
+  }
+  const sav=cardEl.querySelector('.savings');
+  if(sav) sav.innerHTML=(touched&&d.verdict!=='party')?bLine(d,total):savingsLine(d);
+}
+
+function toggleDish(cardEl,c,i){
+  const a=cardEl.id, d=DBY.get(a);
+  if(!d) return;
+  const course=bCourses(d).find(x=>x.key===c);
+  if(!course) return;
+  const sel=selOf(d);
+  let cur=(sel[c]||[]).slice();
+  if(cur.includes(i)){
+    if(cur.length<=1) return;          // a course always keeps one selection
+    cur=cur.filter(x=>x!==i);
+  }else{
+    cur.push(i);
+    while(cur.length>course.k) cur.shift();   // oldest choice drops out
+  }
+  sel[c]=cur; TOUCHED.add(a);
+  paintBuild(a);
+}
+
+document.getElementById('grid').addEventListener('keydown', e=>{
+  if(e.key!=='Enter'&&e.key!==' ') return;
+  const opt=e.target.closest('.opt.pickable');
+  if(!opt) return;
+  e.preventDefault();
+  toggleDish(opt.closest('.card'),opt.dataset.c,+opt.dataset.i);
+});
+
 document.getElementById('grid').addEventListener('click', e=>{
+  const opt=e.target.closest('.opt.pickable');
+  if(opt){ toggleDish(opt.closest('.card'),opt.dataset.c,+opt.dataset.i); return; }
+  const rst=e.target.closest('.breset');
+  if(rst){
+    const cardEl=rst.closest('.card'), a=cardEl.id;
+    SEL.set(a,defaultSel(DBY.get(a))); TOUCHED.delete(a); paintBuild(a);
+    return;
+  }
   const btn=e.target.closest('.tabbtn');
   if(!btn) return;
   const cid=btn.closest('.tabs').dataset.card;
@@ -567,6 +703,10 @@ function render(){
   const unl=rest.filter(d=>!d.days).length;
   document.getElementById('count').textContent=
     `${rest.length} menu${rest.length===1?'':'s'}` + (S.day!==''&&unl?` · incl. ${unl} with unlisted days`:'');
+  // A filter change rebuilds every card from scratch, which resets the parts of
+  // a built meal that live outside the entry: the personalised savings line, the
+  // marker, the reset button. Re-apply them for anything the reader has touched.
+  TOUCHED.forEach(a=>{ if(document.getElementById(a)) paintBuild(a); });
   updateHash();
 }
 const bind=(id,k)=>document.getElementById(id).addEventListener('input',e=>{S[k]=e.target.value;render()});
