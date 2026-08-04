@@ -139,7 +139,12 @@ a.addr:hover{color:var(--accent);text-decoration:underline}
 .v-pick{color:var(--accent);background:rgba(30,103,205,.10);border-color:rgba(30,103,205,.32)}
 .v-marginal{color:var(--ink-2);background:rgba(242,169,0,.14);border-color:rgba(242,169,0,.45)}
 .v-skip{color:var(--critical);background:rgba(224,67,43,.10);border-color:rgba(224,67,43,.38)}
+.v-even{color:var(--ink-2);background:var(--inset);border-color:var(--ring)}
+.v-party{color:var(--ink-2);background:rgba(75,195,201,.14);border-color:rgba(75,195,201,.5)}
 .v-nomenu{color:var(--muted);background:var(--inset);border-color:var(--ring)}
+.pnote{font-size:12.5px;color:var(--ink-2);background:rgba(75,195,201,.10);border-radius:9px;
+  padding:9px 11px;border-left:3px solid var(--teal);line-height:1.45}
+.pnote b{color:var(--ink)}
 .tabs{display:flex;gap:5px;background:var(--inset);border-radius:999px;padding:4px}
 .tabbtn{flex:1;border:none;border-radius:999px;background:transparent;color:var(--ink-2);font-family:inherit;font-weight:700;
   font-size:12.5px;font-weight:650;padding:7px 10px;border-radius:7px;cursor:pointer}
@@ -248,8 +253,8 @@ footer a{color:var(--accent)}
 </div>
 <script>
 const DATA = __PAYLOAD__;
-const ICON={safe:'✓',pick:'◆',marginal:'▵',skip:'✕',nomenu:'—'};
-const LABEL={safe:'Good however you order',pick:'Worth it only if you order right',marginal:'Barely worth it',skip:'Costs more than ordering normally',nomenu:'No menu published'};
+const ICON={safe:'✓',pick:'◆',marginal:'▵',even:'≈',skip:'✕',party:'⚑',nomenu:'—'};
+const LABEL={safe:'Good however you order',pick:'Worth it only if you order right',marginal:'Barely worth it',even:'At best, you break even',skip:'Costs more than ordering normally',party:'Priced for a party, not per person',nomenu:'No menu published'};
 // A confident-sounding verdict on nothing but benchmarked estimates overstates
 // what we know, so the wording softens when no price came off a real menu.
 const labelFor=d=>d.confidence==='estimated'&&(d.verdict==='safe'||d.verdict==='pick')
@@ -375,6 +380,12 @@ document.addEventListener('click',e=>{
 // What the bar is really saying, in dollars.
 const savingsLine=d=>{
   const lo=d.worst-d.tier, hi=d.best-d.tier, a=n=>money(Math.abs(n)), z=n=>Math.abs(n)<0.005;
+  // A per-person figure against a whole party's price is not a saving, it's a
+  // category error. Say nothing rather than say something wrong.
+  if(d.verdict==='party') return `<b class="ev">No honest figure to give</b> — see the note above.`;
+  // Best case lands on the price. Quoting the gap to the cent ("you lose $0.11")
+  // is false precision on a la carte prices that move between visits.
+  if(d.verdict==='even') return `<b class="ev">At best you break even</b>, and you lose up to ${a(lo)} from there.`;
   if(d.best===d.worst){
     if(z(hi)) return `<b class="ev">Breaks even</b> — the food is worth what you pay.`;
     return hi>0 ? `<b class="up">You save ${a(hi)}</b> — fixed menu, no picks to make.`
@@ -409,31 +420,37 @@ function card(d0){
       <div class="verdict v-nomenu">— No menu published</div></article>`;
   }
   const courses=courseOrder(Object.keys(d.menu||{}).filter(c=>d.menu[c]&&d.menu[c].length));
+  // Most courses are choose-one, so picks is a one-item list; a "select two"
+  // course carries both, and both need to show up in the recommendation.
   const orderLines=courses.map(c=>{
-    const p=d.pick[c]; if(!p) return ''; const gl=g[p.dish]; const sr=srcOf(p);
-    const po=portionOf(p);
-    return `<div class="oline"><span class="ocourse">${esc(nameOf(c))}</span><span class="odish">${esc(short(p.dish))}${upgChip(p)}</span><span class="optprice">${money(p.price)}</span></div>`
-      + (gl?`<div class="ogloss">${esc(gl)}</div>`:'')
-      + (po?`<div class="oportion">Portion: ${esc(po)}</div>`:'')
-      + (sr?`<div class="osrc">Source: ${esc(sr)}</div>`:'');
+    const ps=(d.picks&&d.picks[c])||(d.pick[c]?[d.pick[c]]:[]);
+    return ps.map((p,i)=>{
+      const gl=g[p.dish], sr=srcOf(p), po=portionOf(p);
+      return `<div class="oline"><span class="ocourse">${i===0?esc(nameOf(c)):''}</span><span class="odish">${esc(short(p.dish))}${upgChip(p)}</span><span class="optprice">${money(p.price)}</span></div>`
+        + (gl?`<div class="ogloss">${esc(gl)}</div>`:'')
+        + (po?`<div class="oportion">Portion: ${esc(po)}</div>`:'')
+        + (sr?`<div class="osrc">Source: ${esc(sr)}</div>`:'');
+    }).join('');
   }).join('');
   const inc=(d.included||[]).length
     ? `<div class="oline"><span class="ocourse">Included</span><span class="odish">${esc(short(d.included_mode==='choose'?d.included[0].dish:d.included.map(i=>i.dish).join(' + ')))}</span></div>` : '';
   // range band on a 0..2x-tier scale, tick at what you pay
   const sc=v=>Math.max(0,Math.min(v/(d.tier*2),1))*100;
   const L=sc(d.worst), R=sc(d.best);
-  const bandcol=d.verdict==='safe'?'var(--good)':d.verdict==='skip'?'var(--critical)':'var(--accent)';
+  const bandcol=d.verdict==='safe'?'var(--good)':d.verdict==='skip'?'var(--critical)'
+    :(d.verdict==='even'||d.verdict==='party')?'var(--muted)':'var(--accent)';
   const menuHtml=courses.map(c=>{
+    const k=(d.choose&&d.choose[c])||1;
     const opts=d.menu[c].map((o,i)=>{
       const gl=g[o.dish]; const sr=srcOf(o);
       const po=portionOf(o);
-      return `<div class="opt"><span class="optname ${i===0?'best':''}">${i===0?'<span class="star">★</span> ':''}${esc(short(o.dish))}${upgChip(o)}</span>`
+      return `<div class="opt"><span class="optname ${i<k?'best':''}">${i<k?'<span class="star">★</span> ':''}${esc(short(o.dish))}${upgChip(o)}</span>`
         +`<span class="optprice">${money(o.price)}</span></div>`
         +(gl?`<div class="gl">${esc(gl)}</div>`:'')
         +(po?`<div class="portion">Portion: ${esc(po)}</div>`:'')
         +(sr?`<div class="src">Source: ${esc(sr)}</div>`:'');
     }).join('');
-    return `<div class="course"><div class="chdr">${esc(nameOf(c))} — choose one</div>${opts}</div>`;
+    return `<div class="course"><div class="chdr">${esc(nameOf(c))} — choose ${k===1?'one':k===2?'two':k}</div>${opts}</div>`;
   }).join('');
   const incMenu=(d.included||[]).length?`<div class="course"><div class="chdr">Included${d.included_mode==='choose'?' — choose one':''}</div>`
     + d.included.map(o=>`<div class="opt"><span class="optname">${esc(short(o.dish))}</span><span class="optprice">${money(o.price)}</span></div>`).join('')+`</div>`:'';
@@ -458,6 +475,7 @@ function card(d0){
      <span class="confchip"><i class="dot d-${d.confidence}"></i>${esc(CONFSHORT[d.confidence])}</span>
    </div>
    <p class="blurb">${esc(d.blurb)}</p>
+   ${d.party_note?`<div class="pnote"><b>${d.party_unclear?'We can’t score this one fairly:':'How this tier is priced:'}</b> ${esc(d.party_note)}</div>`:''}
    ${d.heads_up?`<div class="heads"><b>Heads up:</b> ${esc(d.heads_up)}</div>`:''}
    <div class="tabs" data-card="${cid}">
      <button class="tabbtn active" data-tab="order">${d.verdict==='skip'?'If you go anyway, order this':'Order this'}</button>
@@ -482,7 +500,11 @@ function card(d0){
        <div class="ticklab" style="left:50%">what you pay</div>
        <div class="ticklab e1">${money(d.tier*2)}</div>
      </div>
-     <div class="barnote">${d.verdict==='safe'
+     <div class="barnote">${d.verdict==='party'
+        ? `The figures above are one person's share. Because this tier is quoted for a party, they don't line up with the <b>${money(d.tier)}</b> and we're not turning them into a verdict.`
+        : d.verdict==='even'
+        ? `Order as well as this menu allows and the food comes to <b>${money(d.best)}</b> against the <b>${money(d.tier)}</b> you pay — near enough to a tie that the gap is noise. Every other combination is worth less than that, down to <b>${money(d.worst)}</b>. Go for the food, not the discount.`
+        : d.verdict==='safe'
         ? (d.best===d.worst
            ? `Fixed menu worth <b>${money(d.best)}</b> against the <b>${money(d.tier)}</b> you pay.`
            : `Every option on this menu beats the price — the whole range sits right of the line.`)
@@ -506,7 +528,7 @@ document.getElementById('grid').addEventListener('click', e=>{
   document.querySelectorAll(`.tabpane[data-card="${cid}"]`).forEach(p=>{ p.hidden = p.dataset.pane!==tab; });
 });
 
-const VRANK={safe:0,pick:1,marginal:2,skip:3,nomenu:4};
+const VRANK={safe:0,pick:1,marginal:2,even:3,party:4,skip:5,nomenu:6};
 const CRANK={verified:0,mixed:1,estimated:2,none:3};
 // "Surprise me" reshuffles each time it is picked, so the order is genuinely
 // different rather than a fixed alternative ranking.

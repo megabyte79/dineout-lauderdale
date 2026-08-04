@@ -18,8 +18,13 @@ PAYLOAD = 'payload.json'
 #   HIGH  exact match on the restaurant's current published menu
 #   MED   close match, a renamed dish, or a reliable secondary source
 #   LOW   no published price anywhere; benchmarked estimate
-DERIVED = ('pick', 'best', 'worst', 'median', 'spread', 'pct', 'pctbest',
+DERIVED = ('pick', 'picks', 'best', 'worst', 'median', 'spread', 'pct', 'pctbest',
            'verdict', 'n', 'low', 'high', 'confidence', 'courses_n')
+
+# How close to the tier price counts as neither a deal nor a rip-off. A menu
+# whose best combination lands 11 cents under what you pay is a wash, not a
+# warning, and a la carte prices move by more than that between visits.
+EVEN_BAND = 0.03
 
 
 def net(o):
@@ -34,7 +39,7 @@ def net(o):
     return o['price'] - (o.get('supp') or 0)
 
 
-def verdict_of(tier, best, worst):
+def verdict_of(tier, best, worst, party_unclear=False):
     """How the prix fixe compares to ordering the same dishes a la carte.
 
     tier  is what you pay; best/worst are the priciest and cheapest
@@ -42,6 +47,10 @@ def verdict_of(tier, best, worst):
     """
     if tier == 0:
         return 'nomenu'      # restaurant published no menu for this tier
+    if party_unclear:
+        return 'party'       # tier is priced for a party; per-person value is unknowable
+    if abs(best - tier) <= tier * EVEN_BAND:
+        return 'even'        # best case lands on the price either way; a wash
     if best < tier:
         return 'skip'        # even ordering the most expensive option loses
     if worst >= tier:
@@ -67,10 +76,17 @@ def recompute(e):
     for course in menu:
         menu[course].sort(key=lambda o: -net(o))
 
-    # The best-value option in each course, after netting out any supplement.
-    e['pick'] = {c: opts[0] for c, opts in menu.items() if opts}
-    best = sum(net(o) for o in e['pick'].values())
-    worst = sum(min(net(o) for o in opts) for opts in menu.values() if opts)
+    # Most courses are "choose one", but a few tiers hand the table a list and
+    # say "select two". `choose` records that; it defaults to one per course.
+    choose = e.get('choose') or {}
+
+    # The best-value option(s) in each course, after netting out any supplement.
+    e['picks'] = {c: opts[:min(choose.get(c, 1), len(opts))]
+                  for c, opts in menu.items() if opts}
+    e['pick'] = {c: opts[0] for c, opts in e['picks'].items()}
+    best = sum(net(o) for opts in e['picks'].values() for o in opts)
+    worst = sum(sum(net(o) for o in opts[-min(choose.get(c, 1), len(opts)):])
+                for c, opts in menu.items() if opts)
 
     # Items that come with the meal rather than being chosen between.
     # 'choose' means the guest picks one of them; anything else means all are served.
@@ -84,6 +100,14 @@ def recompute(e):
             best += total
             worst += total
 
+    # A tier headed "Dinner for Two" buys that many full menus for one price,
+    # so the food on the table is worth that many times one guest's picks.
+    # Scoring one guest's worth against a two-guest price is what produced a
+    # false "costs more" on Bodega's $60 menu.
+    covers = e.get('covers') or 1
+    best *= covers
+    worst *= covers
+
     tier = e['tier']
     e['best'] = round(best, 2)
     e['worst'] = round(worst, 2)
@@ -91,7 +115,7 @@ def recompute(e):
     e['spread'] = round(best - worst, 2)
     e['pct'] = round((e['median'] - tier) / tier * 100, 1) if tier else 0
     e['pctbest'] = round((best - tier) / tier * 100, 1) if tier else 0
-    e['verdict'] = verdict_of(tier, best, worst)
+    e['verdict'] = verdict_of(tier, best, worst, bool(e.get('party_unclear')))
 
     confs = ([o['conf'] for opts in menu.values() for o in opts]
              + [o['conf'] for o in included])
