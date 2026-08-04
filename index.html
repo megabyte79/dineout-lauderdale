@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8">
+<html lang="en" data-theme="light"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,700;12..96,75..100,800&family=Nata+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <title>Dine Out Lauderdale 2026 — decoded</title>
+<script>try{if(localStorage.getItem('dol-theme')==='dark')document.documentElement.setAttribute('data-theme','dark')}catch(e){}</script>
 <style>
 :root{
   color-scheme: light;
@@ -16,19 +17,6 @@
   --sky:#18A3DE; --teal:#4BC3C9; --orange:#FE9B0C; --coral:#FF5027; --slate:#2D3848;
   --inset:#F2F7FD; --cobalt:#1E67CD;
   --display:"Bricolage Grotesque",system-ui,sans-serif;
-}
-@media (prefers-color-scheme: dark){
-  :root:where(:not([data-theme="light"])){
-    color-scheme: dark;
-    --surface-1:#141B24; --plane:#0C1117; --card:#141B24;
-    --ink:#F3F6FA; --ink-2:#B9C2D0; --muted:#8892A0;
-    --grid:#253040; --baseline:#364256; --ring:rgba(255,255,255,0.10);
-    --accent:#5B9CF2; --accent-soft:#1D3556; --success-text:#2FBE85;
-    --good:#1FA971; --warning:#F2A900; --serious:#F2884B; --critical:#FF6B52;
-    --gold:#FFD56B; --navy:#0C1117;
-    --sky:#4FC3F0; --teal:#5BD4DA; --orange:#FFB03A; --coral:#FF7057; --slate:#DCE4F0;
-    --inset:#1B2634; --cobalt:#173A6E; --topbar:#0A0E14;
-  }
 }
 :root[data-theme="dark"]{
   color-scheme: dark;
@@ -47,7 +35,6 @@ body{margin:0;background:var(--plane);color:var(--ink);
 .wrap{max-width:1180px;margin:0 auto;padding:0 20px 80px}
 .topbar{background:var(--slate);color:#fff;padding:9px 0}
 :root[data-theme="dark"] .topbar{background:#0A0E14}
-@media (prefers-color-scheme: dark){:root:where(:not([data-theme="light"])) .topbar{background:#0A0E14}}
 .topbar .wrap{padding:0 20px;display:flex;align-items:center;gap:8px;font-size:13px;letter-spacing:.02em}
 .topbar b{color:var(--gold);font-weight:750}
 header{padding:30px 0 0;position:relative}
@@ -120,7 +107,6 @@ a.addr:hover{color:var(--accent);text-decoration:underline}
 .tier{flex:0 0 auto;text-align:right}
 .tierp{font-family:var(--display);font-stretch:80%;font-size:27px;font-weight:800;letter-spacing:0;color:var(--accent)}
 :root[data-theme="dark"] .tierp{color:var(--sky)}
-@media (prefers-color-scheme: dark){:root:where(:not([data-theme="light"])) .tierp{color:var(--sky)}}
 .tierm{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
 .blurb{font-size:13.5px;color:var(--ink-2);margin:0}
 .heads{font-size:12.5px;color:var(--ink-2);background:var(--inset);border-radius:7px;
@@ -141,7 +127,6 @@ a.addr:hover{color:var(--accent);text-decoration:underline}
   font-size:12.5px;font-weight:650;padding:7px 10px;border-radius:7px;cursor:pointer}
 .tabbtn.active{background:var(--accent);color:#fff;box-shadow:0 1px 2px rgba(20,34,53,.12)}
 :root[data-theme="dark"] .tabbtn.active{color:#fff}
-@media (prefers-color-scheme: dark){:root:where(:not([data-theme="light"])) .tabbtn.active{color:#fff}}
 .tabpane[hidden]{display:none}
 .order{background:var(--inset);border-radius:14px;padding:12px 13px}
 .olab{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);
@@ -169,7 +154,6 @@ a.addr:hover{color:var(--accent);text-decoration:underline}
 .fill{position:absolute;left:0;top:0;bottom:0;border-radius:4px}
 .tick{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--navy);border-radius:1px}
 :root[data-theme="dark"] .tick{background:var(--ink)}
-@media (prefers-color-scheme: dark){:root:where(:not([data-theme="light"])) .tick{background:var(--ink)}}
 .ticklab{position:absolute;top:14px;font-size:10.5px;color:var(--muted);transform:translateX(-50%);white-space:nowrap}
 .ticklab.e0{left:0;transform:none}
 .ticklab.e1{left:auto;right:0;transform:none}
@@ -469,10 +453,19 @@ function render(){
 }
 const bind=(id,k)=>document.getElementById(id).addEventListener('input',e=>{S[k]=e.target.value;render()});
 bind('q','q');bind('meal','meal');bind('price','price');bind('day','day');bind('sort','sort');
-document.getElementById('tt').addEventListener('click',()=>{
-  const cur=document.documentElement.getAttribute('data-theme');
-  const dark=cur?cur==='dark':matchMedia('(prefers-color-scheme: dark)').matches;
-  document.documentElement.setAttribute('data-theme',dark?'light':'dark');
+// Light is the default for everyone. Dark is opt-in and remembered.
+const themeBtn=document.getElementById('tt');
+const applyTheme=t=>{
+  document.documentElement.setAttribute('data-theme',t);
+  themeBtn.setAttribute('aria-pressed',String(t==='dark'));
+  themeBtn.title=t==='dark'?'Switch to light theme':'Switch to dark theme';
+};
+let saved=null; try{saved=localStorage.getItem('dol-theme')}catch(_){}
+applyTheme(saved==='dark'?'dark':'light');
+themeBtn.addEventListener('click',()=>{
+  const next=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';
+  applyTheme(next);
+  try{localStorage.setItem('dol-theme',next)}catch(_){}
 });
 render();
 </script></body></html>
