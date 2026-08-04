@@ -606,7 +606,7 @@ function card(d){
      ${d.courses_n>0&&d.courses_n<3?`<div class="barnote" style="margin-top:6px">Note: only ${d.courses_n} course${d.courses_n===1?'':'s'} ${d.courses_n===1?'was':'were'} published for this tier${d.courses_n===2?' — no dessert listed':''}.</div>`:''}
      ${d.best>d.tier*2?`<div class="barnote" style="margin-top:6px">The bar tops out at ${money(d.tier*2)} (twice what you pay); this menu runs past the end of it.</div>`:''}
    </div>
-   <div class="conf"><i class="dot d-${d.confidence}"></i>${esc(CONFLAB[d.confidence])}<a class="rep" target="_blank" rel="noopener" href="https://github.com/megabyte79/dineout-lauderdale/issues/new?title=${encodeURIComponent('Report: '+d.restaurant+' ('+d.meal+' $'+d.tier+')')}&body=${encodeURIComponent('What did you see? (wrong price, different portion, supplement charged, menu changed...)\n\n')}">Spot an error? Report it</a></div>
+   <div class="conf"><i class="dot d-${d.confidence}"></i>${esc(CONFLAB[d.confidence])}<a class="rep" target="_blank" rel="noopener" href="report.html?r=${encodeURIComponent(d.restaurant)}&m=${encodeURIComponent(d.meal)}&t=${d.tier}">Spot an error? Report it</a></div>
   </article>`;
 }
 
