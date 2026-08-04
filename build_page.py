@@ -1,5 +1,7 @@
 import json
+from datetime import date
 payload = open('payload.json').read()
+BUILD_DATE = date.today().strftime('%B %d, %Y').replace(' 0', ' ')
 
 HTML = r'''<!DOCTYPE html>
 <html lang="en" data-theme="light"><head><meta charset="utf-8">
@@ -12,7 +14,10 @@ HTML = r'''<!DOCTYPE html>
 <meta property="og:title" content="Dine Out Lauderdale 2026 — decoded">
 <meta property="og:description" content="Every fixed-price menu priced dish by dish against the restaurant's regular menu. Which deals are real, and what to order.">
 <meta property="og:url" content="https://megabyte79.github.io/dineout-lauderdale/">
+<meta property="og:image" content="https://megabyte79.github.io/dineout-lauderdale/og-card.png">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://megabyte79.github.io/dineout-lauderdale/og-card.png">
 <meta name="twitter:title" content="Dine Out Lauderdale 2026 — decoded">
 <meta name="twitter:description" content="Every fixed-price menu priced dish by dish against the restaurant's regular menu.">
 <script>try{if(localStorage.getItem('dol-theme')==='dark')document.documentElement.setAttribute('data-theme','dark')}catch(e){}</script>
@@ -97,7 +102,8 @@ input[type=search]{min-width:210px}
 .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(430px,1fr))}
 @media(max-width:920px){.grid{grid-template-columns:1fr}}
 .card{background:var(--card);border:1px solid var(--ring);border-radius:20px;padding:18px 18px 14px;
-  display:flex;flex-direction:column;gap:11px;box-shadow:0 3px 6px rgba(0,0,0,.10);min-width:0}
+  display:flex;flex-direction:column;gap:11px;box-shadow:0 3px 6px rgba(0,0,0,.10);min-width:0;
+  content-visibility:auto;contain-intrinsic-size:auto 620px}
 .chead{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
 .rname{font-size:16.5px;font-weight:800;letter-spacing:.015em;text-transform:uppercase;margin:0;line-height:1.3;color:var(--slate)}
 .catpill{display:inline-block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
@@ -190,6 +196,8 @@ a.addr:hover{color:var(--accent);text-decoration:underline}
 .barnote{font-size:12px;color:var(--ink-2);margin-top:20px}
 .barnote b{color:var(--ink)}
 .conf{font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:6px;margin-top:auto;padding-top:10px}
+a.rep{margin-left:auto;color:var(--muted);text-decoration:none;font-weight:600}
+a.rep:hover{color:var(--accent);text-decoration:underline}
 .dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
 .d-verified{background:var(--good)} .d-mixed{background:var(--warning)} .d-estimated{background:var(--baseline)} .d-none{background:var(--muted)}
 .empty{text-align:center;color:var(--muted);padding:60px 20px;font-size:14px}
@@ -237,6 +245,7 @@ footer a{color:var(--accent)}
   <p><b>How to read this.</b> "Worth" is what the same dishes would cost à la carte at that restaurant, with portions adjusted — a 4-piece appetizer is priced against a 4-piece share of the regular 8-piece order, not the whole thing. All figures are before tax and tip. Paid add-ons (wine pairings, upcharges) are excluded; genuinely included drinks/sides are counted.</p>
   <p><b>"Order this"</b> is the highest-value pick in each course — usually the most expensive dish on the menu, which is the point. Switch to the <b>Full menu</b> tab on any card to see every option in every course with its own everyday price, and pick for yourself.</p>
   <p><b>Hours &amp; days.</b> The day strip (M T W T F S S) shows which days each special is served, read from the hours the restaurant published for that tier. Filtering by a day never hides a tier whose days weren't published — those are kept in the results and counted separately, since we can't rule them in or out. Always call ahead for a weekend booking.</p>
+  <p><b>Freshness.</b> Prices last verified __BUILDDATE__. Menus change during the program; the full history of corrections is in the <a href="https://github.com/megabyte79/dineout-lauderdale/commits/main" target="_blank" rel="noopener">changelog</a>.</p>
   <p><b>Confidence.</b> A green dot means every price came off the restaurant's own current menu. Grey means the restaurant publishes no prices anywhere and the numbers are benchmarked estimates — real for ranking, not for arguing over. Menus captured from visitlauderdale.com in August 2026; restaurants change menus without notice.</p>
 </footer>
 </div>
@@ -278,12 +287,34 @@ const srcOf=o=>{
   return s;
 };
 
+const S={q:'',city:[],category:[],meal:'',price:'',day:'',sort:'pct'};
+// Shareable filter state lives in the hash as #f&q=...&cat=a|b - anything else is a card anchor.
+(function(){
+  const h=location.hash;
+  if(!h.startsWith('#f&')) return;
+  const p=new URLSearchParams(h.slice(3));
+  S.q=p.get('q')||'';
+  S.category=(p.get('cat')||'').split('|').filter(Boolean);
+  S.city=(p.get('area')||'').split('|').filter(Boolean);
+  S.meal=p.get('meal')||''; S.price=p.get('price')||''; S.day=p.get('day')||'';
+  S.sort=p.get('sort')||'pct';
+})();
+function updateHash(){
+  const def=!S.q&&!S.category.length&&!S.city.length&&!S.meal&&!S.price&&S.day===''&&S.sort==='pct';
+  if(def){ if(location.hash.startsWith('#f&')) history.replaceState(null,'',location.pathname+location.search); return; }
+  const p=new URLSearchParams();
+  if(S.q)p.set('q',S.q); if(S.category.length)p.set('cat',S.category.join('|'));
+  if(S.city.length)p.set('area',S.city.join('|')); if(S.meal)p.set('meal',S.meal);
+  if(S.price)p.set('price',S.price); if(S.day!=='')p.set('day',S.day);
+  if(S.sort!=='pct')p.set('sort',S.sort);
+  history.replaceState(null,'','#f&'+p.toString());
+}
 const cities=[...new Set(DATA.map(d=>d.city).filter(Boolean))].sort();
 const cats=[...new Set(DATA.flatMap(d=>d.category||[]))].sort();
 
 // Checkbox dropdown. Nothing ticked means "show everything", so the quickest way to
 // exclude a couple of options is Select all, then untick the ones you don't want.
-function multisel(hostId, allLabel, noun, values, onChange, counts){
+function multisel(hostId, allLabel, noun, values, onChange, counts, initial){
   counts=counts||{};
   const host=document.getElementById(hostId);
   host.innerHTML=
@@ -315,14 +346,29 @@ function multisel(hostId, allLabel, noun, values, onChange, counts){
     if(act){boxes.forEach(b=>{b.checked=act.dataset.act==='all'});sync()}
   });
   boxes.forEach(b=>b.addEventListener('change',sync));
+  if(initial&&initial.length){
+    // restore checkbox state without firing onChange: S already holds these
+    // values (parsed from the hash) and render() has not been defined yet.
+    boxes.forEach(b=>{b.checked=initial.includes(b.value)});
+    lab.textContent = initial.length===1 ? initial[0]
+                    : initial.length===values.length ? allLabel
+                    : initial.length+' '+noun;
+    btn.classList.toggle('on', initial.length>0 && initial.length<values.length);
+  }
   return host;
 }
 const scored=DATA.filter(d=>d.verdict!=='nomenu');
 const catCounts={},cityCounts={};
 scored.forEach(d=>{(d.category||[]).forEach(c=>catCounts[c]=(catCounts[c]||0)+1);
   if(d.city)cityCounts[d.city]=(cityCounts[d.city]||0)+1});
-multisel('category','All categories','categories',cats,v=>{S.category=v;render()},catCounts);
-multisel('city','All areas','areas',cities,v=>{S.city=v;render()},cityCounts);
+multisel('category','All categories','categories',cats,v=>{S.category=v;render()},catCounts,S.category);
+multisel('city','All areas','areas',cities,v=>{S.city=v;render()},cityCounts,S.city);
+// reflect any hash-restored state into the plain controls
+document.getElementById('q').value=S.q;
+document.getElementById('meal').value=S.meal;
+document.getElementById('price').value=S.price;
+document.getElementById('day').value=S.day;
+document.getElementById('sort').value=S.sort;
 document.addEventListener('click',e=>{
   if(e.target.closest('.ms'))return;
   document.querySelectorAll('.mspanel').forEach(p=>{p.hidden=true});
@@ -448,7 +494,7 @@ function card(d0){
      ${d.courses_n>0&&d.courses_n<3?`<div class="barnote" style="margin-top:6px">Note: only ${d.courses_n} course${d.courses_n===1?'':'s'} ${d.courses_n===1?'was':'were'} published for this tier${d.courses_n===2?' — no dessert listed':''}.</div>`:''}
      ${d.best>d.tier*2?`<div class="barnote" style="margin-top:6px">The bar tops out at ${money(d.tier*2)} (twice what you pay); this menu runs past the end of it.</div>`:''}
    </div>
-   <div class="conf"><i class="dot d-${d.confidence}"></i>${esc(CONFLAB[d.confidence])}</div>
+   <div class="conf"><i class="dot d-${d.confidence}"></i>${esc(CONFLAB[d.confidence])}<a class="rep" target="_blank" rel="noopener" href="https://github.com/megabyte79/dineout-lauderdale/issues/new?title=${encodeURIComponent('Report: '+d.restaurant+' ('+d.meal+' $'+d.tier+')')}&body=${encodeURIComponent('What did you see? (wrong price, different portion, supplement charged, menu changed...)\n\n')}">Spot an error? Report it</a></div>
   </article>`;
 }
 
@@ -470,7 +516,6 @@ document.getElementById('grid').addEventListener('click', e=>{
   document.querySelectorAll(`.tabpane[data-card="${cid}"]`).forEach(p=>{ p.hidden = p.dataset.pane!==tab; });
 });
 
-const S={q:'',city:[],category:[],meal:'',price:'',day:'',sort:'pct'};
 const VRANK={safe:0,pick:1,marginal:2,skip:3,nomenu:4};
 function updateLede(){
   const restCount=new Set(DATA.map(d=>d.restaurant)).size;
@@ -507,6 +552,7 @@ function render(){
   const unl=rest.filter(d=>!d.days).length;
   document.getElementById('count').textContent=
     `${rest.length} menu${rest.length===1?'':'s'}` + (S.day!==''&&unl?` · incl. ${unl} with unlisted days`:'');
+  updateHash();
 }
 const bind=(id,k)=>document.getElementById(id).addEventListener('input',e=>{S[k]=e.target.value;render()});
 bind('q','q');bind('meal','meal');bind('price','price');bind('day','day');bind('sort','sort');
@@ -527,5 +573,5 @@ themeBtn.addEventListener('click',()=>{
 render();
 </script></body></html>'''
 
-open('dineout_guide.html','w').write(HTML.replace('__PAYLOAD__', payload))
+open('dineout_guide.html','w').write(HTML.replace('__PAYLOAD__', payload).replace('__BUILDDATE__', BUILD_DATE))
 print('written')
