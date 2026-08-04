@@ -1,6 +1,23 @@
+"""Generate the Dine Out Lauderdale guide as one self-contained HTML file.
+
+The page is a single template string: CSS, markup and JS inlined, with two
+placeholders filled at build time:
+
+    __PAYLOAD__    the full payload.json, re-serialized without whitespace
+    __BUILDDATE__  today's date, for the freshness note in the footer
+
+payload.json is the source of truth and recompute.py owns every derived field
+on it. Run `python3 recompute.py --check` before building; this script only
+renders, it never scores.
+
+Output: dineout_guide.html (copy to index.html to publish).
+"""
 import json
 from datetime import date
-payload = open('payload.json').read()
+
+entries = json.load(open('payload.json'))
+# Compact separators shave ~6% off the shipped page; the file on disk is untouched.
+PAYLOAD = json.dumps(entries, ensure_ascii=False, separators=(',', ':'))
 BUILD_DATE = date.today().strftime('%B %d, %Y').replace(' 0', ' ')
 
 HTML = r'''<!DOCTYPE html>
@@ -120,7 +137,6 @@ a.addr:hover{color:var(--accent);text-decoration:underline}
   display:flex;align-items:center;justify-content:center;background:var(--grid);color:var(--muted)}
 .dchip.on{background:var(--accent);color:#fff}
 .dnote{font-size:11px;color:var(--muted);margin-left:5px}
-.chdr{font-family:inherit}
 .hours .ic{color:var(--accent)}
 .tier{flex:0 0 auto;text-align:right}
 .tierp{font-family:var(--display);font-stretch:80%;font-size:27px;font-weight:800;letter-spacing:0;color:var(--accent)}
@@ -146,14 +162,12 @@ a.addr:hover{color:var(--accent);text-decoration:underline}
   padding:9px 11px;border-left:3px solid var(--teal);line-height:1.45}
 .pnote b{color:var(--ink)}
 .tabs{display:flex;gap:5px;background:var(--inset);border-radius:999px;padding:4px}
-.tabbtn{flex:1;border:none;border-radius:999px;background:transparent;color:var(--ink-2);font-family:inherit;font-weight:700;
+.tabbtn{flex:1;border:none;background:transparent;color:var(--ink-2);font-family:inherit;
   font-size:12.5px;font-weight:650;padding:7px 10px;border-radius:7px;cursor:pointer}
 .tabbtn.active{background:var(--accent);color:#fff;box-shadow:0 1px 2px rgba(20,34,53,.12)}
 :root[data-theme="dark"] .tabbtn.active{color:#fff}
 .tabpane[hidden]{display:none}
 .order{background:var(--inset);border-radius:14px;padding:12px 13px}
-.olab{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);
-  font-weight:650;margin-bottom:7px}
 .oline{display:flex;gap:7px;align-items:baseline;font-size:13.5px;margin-bottom:4px}
 .ocourse{flex:0 0 62px;color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.04em}
 .odish{font-weight:600;color:var(--ink);min-width:0;overflow-wrap:anywhere}
@@ -166,7 +180,6 @@ a.addr:hover{color:var(--accent);text-decoration:underline}
   font-weight:650;border-bottom:1px solid var(--grid);padding-bottom:4px;margin-bottom:7px}
 .opt{display:flex;justify-content:space-between;gap:10px;align-items:baseline;padding:4px 0}
 .optname{font-size:13.5px;min-width:0;overflow-wrap:anywhere}
-.best{font-weight:650}
 .star{color:var(--warning);font-size:11px}
 .optprice{font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums;flex:0 0 auto}
 .upg{display:inline-block;font-size:10.5px;font-weight:700;color:#8a5a00;background:#FFF0CC;
@@ -271,6 +284,8 @@ footer a{color:var(--accent)}
 </div>
 <script>
 const DATA = __PAYLOAD__;
+
+/* ---------------------------------------------------- labels & helpers --- */
 const ICON={safe:'✓',pick:'◆',marginal:'▵',even:'≈',skip:'✕',party:'⚑',nomenu:'—'};
 const LABEL={safe:'Good however you order',pick:'Worth it only if you order right',marginal:'Barely worth it',even:'At best, you break even',skip:'Costs more than ordering normally',party:'Priced for a party, not per person',nomenu:'No menu published'};
 // A confident-sounding verdict on nothing but benchmarked estimates overstates
@@ -282,6 +297,7 @@ const CONFLAB={verified:'Prices verified on the restaurant’s own menu',mixed:'
 const CONFSHORT={verified:'verified prices',mixed:'partly estimated',estimated:'mostly estimated',none:''};
 const ORDER_PRIORITY=['Appetizer','Special','Side','Mid','Cocktail','Entree','Dessert'];
 const CN={Appetizer:'Starter',Special:'Special',Side:'Side',Mid:'Pasta',Cocktail:'Cocktail',Entree:'Main',Dessert:'Dessert'};
+const DAYL=['M','T','W','T','F','S','S'];
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const money=n=>'$'+n.toFixed(n%1?2:0);
 const slug=s=>s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
@@ -307,6 +323,7 @@ const srcOf=o=>{
   return s;
 };
 
+/* ------------------------------------------------- filter state & hash --- */
 const S={q:'',city:[],category:[],meal:'',price:'',day:'',sort:'pct'};
 // Shareable filter state lives in the hash as #f&q=...&cat=a|b - anything else is a card anchor.
 (function(){
@@ -403,7 +420,9 @@ const savingsLine=d=>{
   if(d.verdict==='party') return `<b class="ev">No honest figure to give</b> — see the note above.`;
   // Best case lands on the price. Quoting the gap to the cent ("you lose $0.11")
   // is false precision on a la carte prices that move between visits.
-  if(d.verdict==='even') return `<b class="ev">At best you break even</b>, and you lose up to ${a(lo)} from there.`;
+  if(d.verdict==='even') return lo>-0.005
+    ? `<b class="ev">Break even either way</b> — every combination is worth about what you pay.`
+    : `<b class="ev">At best you break even</b>, and you lose up to ${a(lo)} from there.`;
   if(d.best===d.worst){
     if(z(hi)) return `<b class="ev">Breaks even</b> — the food is worth what you pay.`;
     return hi>0 ? `<b class="up">You save ${a(hi)}</b> — fixed menu, no picks to make.`
@@ -428,15 +447,26 @@ const mapsUrl=d=>'https://www.google.com/maps/search/?api=1&query='+encodeURICom
    so an untouched card keeps showing the honest best-to-worst range instead of
    quietly presenting our own recommendation as if it were their choice. */
 const SEL=new Map(), TOUCHED=new Set(), DBY=new Map();
-const anchorOf=d=>slug(d.restaurant+'-'+d.meal);
+// The tier is part of the identity: six restaurants run two tiers of the same
+// meal (Le Bistro has a $45 and a $60 dinner), and without it their cards
+// shared a DOM id and a selection slot, so building a meal on one card
+// silently used the other tier's menu and price.
+const anchorOf=d=>slug(d.restaurant+'-'+d.meal+'-'+d.tier);
 
 // Courses the builder walks. `pick` false means every item is served rather
 // than chosen between, so they all count and none of them are clickable.
+// Menus never change at runtime, so the built list is cached per entry:
+// bTotal and toggleDish call this on every tap, and render() on every card.
+const BC=new Map();
 const bCourses=d=>{
-  const cs=courseOrder(Object.keys(d.menu||{}).filter(c=>d.menu[c]&&d.menu[c].length))
+  const a=anchorOf(d);
+  let cs=BC.get(a);
+  if(cs) return cs;
+  cs=courseOrder(Object.keys(d.menu||{}).filter(c=>d.menu[c]&&d.menu[c].length))
     .map(c=>({key:c,label:nameOf(c),opts:d.menu[c],k:(d.choose&&d.choose[c])||1,pick:true}));
   const inc=d.included||[];
   if(inc.length) cs.push({key:'__inc',label:'Included',opts:inc,k:1,pick:d.included_mode==='choose'});
+  BC.set(a,cs);
   return cs;
 };
 const defaultSel=d=>{
@@ -464,11 +494,9 @@ const bLine=(d,total)=>{
     : `Your meal: <b>${money(total)}</b> — <b class="dn">you pay ${money(-diff)} over</b>.`;
 };
 
-let cardSeq=0;
-function card(d0){
-  const d=d0;
+/* ------------------------------------------------------------- the card --- */
+function card(d){
   const g=d.gloss||{};
-  const cid='c'+(cardSeq++);
   const catpills=(d.category||[]).map(c=>`<span class="catpill">${esc(c)}</span>`).join('');
   // Link straight to the restaurant's own site; the Dine Out listing adds nothing
   // we don't already show, and "Menu & details" competed with our own menu tab.
@@ -483,14 +511,14 @@ function card(d0){
       ${d.heads_up?`<div class="heads"><b>Heads up:</b> ${esc(d.heads_up)}</div>`:''}
       <div class="verdict v-nomenu">— No menu published</div></article>`;
   }
-  const courses=courseOrder(Object.keys(d.menu||{}).filter(c=>d.menu[c]&&d.menu[c].length));
+  const bcs=bCourses(d);
   // Most courses are choose-one, so picks is a one-item list; a "select two"
   // course carries both, and both need to show up in the recommendation.
-  const orderLines=courses.map(c=>{
-    const ps=(d.picks&&d.picks[c])||(d.pick[c]?[d.pick[c]]:[]);
+  const orderLines=bcs.filter(c=>c.key!=='__inc').map(c=>{
+    const ps=(d.picks&&d.picks[c.key])||(d.pick[c.key]?[d.pick[c.key]]:[]);
     return ps.map((p,i)=>{
       const gl=g[p.dish], sr=srcOf(p), po=portionOf(p);
-      return `<div class="oline"><span class="ocourse">${i===0?esc(nameOf(c)):''}</span><span class="odish">${esc(short(p.dish))}${upgChip(p)}</span><span class="optprice">${money(p.price)}</span></div>`
+      return `<div class="oline"><span class="ocourse">${i===0?esc(c.label):''}</span><span class="odish">${esc(short(p.dish))}${upgChip(p)}</span><span class="optprice">${money(p.price)}</span></div>`
         + (gl?`<div class="ogloss">${esc(gl)}</div>`:'')
         + (po?`<div class="oportion">Portion: ${esc(po)}</div>`:'')
         + (sr?`<div class="osrc">Source: ${esc(sr)}</div>`:'');
@@ -515,7 +543,7 @@ function card(d0){
   const bandcol=d.verdict==='safe'?'var(--good)':d.verdict==='skip'?'var(--critical)'
     :(d.verdict==='even'||d.verdict==='party')?'var(--muted)':'var(--accent)';
   const sel=selOf(d);
-  const menuHtml=bCourses(d).map(c=>{
+  const menuHtml=bcs.map(c=>{
     const on=new Set(sel[c.key]||[]);
     const recN=c.pick?Math.min(c.k,c.opts.length):0;
     const opts=c.opts.map((o,i)=>{
@@ -533,9 +561,8 @@ function card(d0){
     const hdr=c.pick?` — choose ${c.k===1?'one':c.k===2?'two':c.k}`:' — all served';
     return `<div class="course"><div class="chdr">${esc(c.label)}${hdr}</div>${opts}</div>`;
   }).join('');
-  const anyPick=bCourses(d).some(c=>c.pick&&c.opts.length>1);
+  const anyPick=bcs.some(c=>c.pick&&c.opts.length>1);
   const hoursLine=d.hours?`<div class="hours"><span class="ic">🕒</span>${esc(d.hours)}</div>`:'';
-  const DAYL=['M','T','W','T','F','S','S'];
   const dayStrip = d.days
     ? `<div class="daystrip" title="Days this special is served">${DAYL.map((L,i)=>`<span class="dchip ${d.days.includes(i)?'on':''}">${L}</span>`).join('')}</div>`
     : `<div class="daystrip" title="The restaurant did not publish serving days"><span class="dnote" style="margin-left:0">Serving days not published — call ahead</span></div>`;
@@ -558,14 +585,14 @@ function card(d0){
    <p class="blurb">${esc(d.blurb)}</p>
    ${d.party_note?`<div class="pnote"><b>${d.party_unclear?'We can’t score this one fairly:':'How this tier is priced:'}</b> ${esc(d.party_note)}</div>`:''}
    ${d.heads_up?`<div class="heads"><b>Heads up:</b> ${esc(d.heads_up)}</div>`:''}
-   <div class="tabs" data-card="${cid}">
+   <div class="tabs">
      <button class="tabbtn active" data-tab="order">${d.verdict==='skip'?'If you go anyway, order this':'Order this'}</button>
      <button class="tabbtn" data-tab="full">${anyPick?'Build your meal':'Full menu &amp; prices'}</button>
    </div>
-   <div class="tabpane" data-card="${cid}" data-pane="order">
+   <div class="tabpane" data-pane="order">
      <div class="order">${orderLines}${inc}</div>
    </div>
-   <div class="tabpane" data-card="${cid}" data-pane="full" hidden>
+   <div class="tabpane" data-pane="full" hidden>
      <div class="fullmenu">
        ${anyPick?`<div class="bhint">Tap any dish to swap it into your meal. ★ is what we'd order.</div>`:''}
        ${menuHtml}
@@ -669,13 +696,13 @@ document.getElementById('grid').addEventListener('click', e=>{
   }
   const btn=e.target.closest('.tabbtn');
   if(!btn) return;
-  const cid=btn.closest('.tabs').dataset.card;
-  const tab=btn.dataset.tab;
-  // data-card lives on the .tabs wrapper, not on the buttons themselves.
-  document.querySelectorAll(`.tabs[data-card="${cid}"] .tabbtn`).forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
-  document.querySelectorAll(`.tabpane[data-card="${cid}"]`).forEach(p=>{ p.hidden = p.dataset.pane!==tab; });
+  // Tabs and panes both live inside the card, so scoping to it needs no ids.
+  const cardEl=btn.closest('.card'), tab=btn.dataset.tab;
+  cardEl.querySelectorAll('.tabbtn').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  cardEl.querySelectorAll('.tabpane').forEach(p=>{ p.hidden = p.dataset.pane!==tab; });
 });
 
+/* --------------------------------------------------------- sort & render --- */
 const VRANK={safe:0,pick:1,marginal:2,even:3,party:4,skip:5,nomenu:6};
 const CRANK={verified:0,mixed:1,estimated:2,none:3};
 // "Surprise me" reshuffles each time it is picked, so the order is genuinely
@@ -727,7 +754,14 @@ function render(){
   updateHash();
 }
 const bind=(id,k)=>document.getElementById(id).addEventListener('input',e=>{S[k]=e.target.value;render()});
-bind('q','q');bind('meal','meal');bind('price','price');bind('day','day');bind('sort','sort');
+bind('meal','meal');bind('price','price');bind('day','day');bind('sort','sort');
+// Search rebuilds all 240 cards, so it waits for a pause in typing rather than
+// re-rendering on every keystroke. The selects stay immediate.
+let qTimer=null;
+document.getElementById('q').addEventListener('input',e=>{
+  clearTimeout(qTimer);
+  qTimer=setTimeout(()=>{S.q=e.target.value;render()},120);
+});
 document.getElementById('sort').addEventListener('change',e=>{if(e.target.value==='rand'){reshuffle();render()}});
 // Light is the default for everyone. Dark is opt-in and remembered.
 const themeBtn=document.getElementById('tt');
@@ -747,5 +781,6 @@ reshuffle();
 render();
 </script></body></html>'''
 
-open('dineout_guide.html','w').write(HTML.replace('__PAYLOAD__', payload).replace('__BUILDDATE__', BUILD_DATE))
-print('written')
+html = HTML.replace('__PAYLOAD__', PAYLOAD).replace('__BUILDDATE__', BUILD_DATE)
+open('dineout_guide.html', 'w').write(html)
+print(f'dineout_guide.html: {len(entries)} entries, {len(html)/1024:.0f} KB, built {BUILD_DATE}')
