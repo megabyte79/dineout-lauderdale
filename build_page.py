@@ -496,8 +496,19 @@ function card(d0){
         + (sr?`<div class="osrc">Source: ${esc(sr)}</div>`:'');
     }).join('');
   }).join('');
-  const inc=(d.included||[]).length
-    ? `<div class="oline"><span class="ocourse">Included</span><span class="odish">${esc(short(d.included_mode==='choose'?d.included[0].dish:d.included.map(i=>i.dish).join(' + ')))}</span></div>` : '';
+  // Items that come with the meal. When several are served, each gets its own
+  // line and its own price like any course, rather than being crushed into one
+  // plus-joined row where a five-course tasting reads as a single dish.
+  const incAll=d.included||[];
+  const incShow=incAll.length&&d.included_mode==='choose'
+    ? [incAll.slice().sort((a,b)=>b.price-a.price)[0]]   // the one recompute counts
+    : incAll;
+  const inc=incShow.map((o,i)=>{
+    const gl=g[o.dish], po=portionOf(o);
+    return `<div class="oline"><span class="ocourse">${i===0?'Included':''}</span><span class="odish">${esc(short(o.dish))}</span><span class="optprice">${money(o.price)}</span></div>`
+      +(gl?`<div class="ogloss">${esc(gl)}</div>`:'')
+      +(po?`<div class="oportion">Portion: ${esc(po)}</div>`:'');
+  }).join('');
   // range band on a 0..2x-tier scale, tick at what you pay
   const sc=v=>Math.max(0,Math.min(v/(d.tier*2),1))*100;
   const L=sc(d.worst), R=sc(d.best);
@@ -660,7 +671,8 @@ document.getElementById('grid').addEventListener('click', e=>{
   if(!btn) return;
   const cid=btn.closest('.tabs').dataset.card;
   const tab=btn.dataset.tab;
-  document.querySelectorAll(`.tabbtn[data-card="${cid}"]`).forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  // data-card lives on the .tabs wrapper, not on the buttons themselves.
+  document.querySelectorAll(`.tabs[data-card="${cid}"] .tabbtn`).forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
   document.querySelectorAll(`.tabpane[data-card="${cid}"]`).forEach(p=>{ p.hidden = p.dataset.pane!==tab; });
 });
 
