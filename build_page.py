@@ -7,6 +7,14 @@ HTML = r'''<!DOCTYPE html>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,700;12..96,75..100,800&family=Nata+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <title>Dine Out Lauderdale 2026 — decoded</title>
+<meta name="description" content="Every Dine Out Lauderdale fixed-price menu, with each dish priced against the restaurant's own everyday menu, so you can tell which deals actually save you money.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Dine Out Lauderdale 2026 — decoded">
+<meta property="og:description" content="Every fixed-price menu priced dish by dish against the restaurant's regular menu. Which deals are real, and what to order.">
+<meta property="og:url" content="https://megabyte79.github.io/dineout-lauderdale/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Dine Out Lauderdale 2026 — decoded">
+<meta name="twitter:description" content="Every fixed-price menu priced dish by dish against the restaurant's regular menu.">
 <script>try{if(localStorage.getItem('dol-theme')==='dark')document.documentElement.setAttribute('data-theme','dark')}catch(e){}</script>
 <style>
 :root{
@@ -83,6 +91,7 @@ input[type=search]{min-width:210px}
   font-size:13px;color:var(--ink);cursor:pointer;line-height:1.3}
 .msopt:hover{background:var(--inset)}
 .msopt input{margin:0;flex:0 0 auto;accent-color:var(--accent)}
+.mscount{margin-left:auto;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
 .mshint{font-size:11px;color:var(--muted);padding:5px 7px 2px;line-height:1.35}
 @media(max-width:600px){.ms{position:static}.mspanel{left:14px;right:14px;min-width:0}}
 .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(430px,1fr))}
@@ -149,6 +158,21 @@ a.addr:hover{color:var(--accent);text-decoration:underline}
 .best{font-weight:650}
 .star{color:var(--warning);font-size:11px}
 .optprice{font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums;flex:0 0 auto}
+.upg{display:inline-block;font-size:10.5px;font-weight:700;color:#8a5a00;background:#FFF0CC;
+  border:1px solid #F2C94C;border-radius:999px;padding:1px 6px;margin-left:6px;white-space:nowrap}
+:root[data-theme="dark"] .upg{color:#FFD98A;background:#3A2E10;border-color:#7A5F1E}
+.portion{font-size:11px;color:var(--muted);line-height:1.4;font-style:italic}
+.oportion{font-size:11px;color:var(--muted);margin:0 0 5px 69px;line-height:1.4;font-style:italic;overflow-wrap:anywhere}
+.upgnote{font-size:12px;color:var(--ink-2);background:var(--inset);border-radius:9px;
+  padding:7px 10px;margin-top:2px;line-height:1.45}
+.upgnote b{color:var(--ink)}
+.v-est{border-style:dashed !important}
+.alink{opacity:0;margin-left:7px;font-size:12.5px;color:var(--muted);text-decoration:none;
+  transition:opacity .12s;cursor:pointer;border:none;background:none;padding:0;font-family:inherit}
+.card:hover .alink,.alink:focus{opacity:1}
+.alink:hover{color:var(--accent)}
+.alink.done{opacity:1;color:var(--good)}
+:target.card{outline:3px solid var(--accent);outline-offset:3px}
 .gl{font-size:12.5px;color:var(--ink-2);margin:2px 0 4px 0;line-height:1.42}
 .src{font-size:11px;color:var(--muted);margin:-2px 0 4px 0;line-height:1.4;font-style:italic;overflow-wrap:anywhere}
 .bar{margin-top:2px}
@@ -220,12 +244,22 @@ footer a{color:var(--accent)}
 const DATA = __PAYLOAD__;
 const ICON={safe:'✓',pick:'◆',marginal:'▵',skip:'✕',nomenu:'—'};
 const LABEL={safe:'Good however you order',pick:'Worth it only if you order right',marginal:'Barely worth it',skip:'Costs more than ordering normally',nomenu:'No menu published'};
+// A confident-sounding verdict on nothing but benchmarked estimates overstates
+// what we know, so the wording softens when no price came off a real menu.
+const labelFor=d=>d.confidence==='estimated'&&(d.verdict==='safe'||d.verdict==='pick')
+  ? 'Likely '+LABEL[d.verdict].charAt(0).toLowerCase()+LABEL[d.verdict].slice(1)
+  : LABEL[d.verdict];
 const CONFLAB={verified:'Prices verified on the restaurant’s own menu',mixed:'Some prices estimated',estimated:'Mostly estimated — restaurant publishes no prices',none:''};
 const CONFSHORT={verified:'verified prices',mixed:'partly estimated',estimated:'mostly estimated',none:''};
 const ORDER_PRIORITY=['Appetizer','Special','Side','Mid','Cocktail','Entree','Dessert'];
 const CN={Appetizer:'Starter',Special:'Special',Side:'Side',Mid:'Pasta',Cocktail:'Cocktail',Entree:'Main',Dessert:'Dessert'};
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const money=n=>'$'+n.toFixed(n%1?2:0);
+const slug=s=>s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+// A supplement costs extra on top of the base price, so only the difference counts.
+const netOf=o=>o.price-(o.supp||0);
+const upgChip=o=>o.supp?`<span class="upg">+${money(o.supp)}</span>`:'';
+const portionOf=o=>{const p=(o&&o.portion||'').trim();return p&&!/^n\/a$/i.test(p)?p:null};
 const nameOf=c=>CN[c]||c;
 const courseOrder=cs=>cs.slice().sort((a,b)=>{
   const ia=ORDER_PRIORITY.indexOf(a), ib=ORDER_PRIORITY.indexOf(b);
@@ -249,13 +283,14 @@ const cats=[...new Set(DATA.flatMap(d=>d.category||[]))].sort();
 
 // Checkbox dropdown. Nothing ticked means "show everything", so the quickest way to
 // exclude a couple of options is Select all, then untick the ones you don't want.
-function multisel(hostId, allLabel, noun, values, onChange){
+function multisel(hostId, allLabel, noun, values, onChange, counts){
+  counts=counts||{};
   const host=document.getElementById(hostId);
   host.innerHTML=
      `<button type="button" class="msbtn" aria-expanded="false"><span class="mslab">${esc(allLabel)}</span><span class="mscar">▼</span></button>`
     +`<div class="mspanel" hidden>`
     +  `<div class="msact"><button type="button" data-act="all">Select all</button><button type="button" data-act="none">Clear</button></div>`
-    +  values.map(v=>`<label class="msopt"><input type="checkbox" value="${esc(v)}"><span>${esc(v)}</span></label>`).join('')
+    +  values.map(v=>`<label class="msopt"><input type="checkbox" value="${esc(v)}"><span>${esc(v)}</span><span class="mscount">${counts[v]||0}</span></label>`).join('')
     +  `<div class="mshint">Tick to narrow. To exclude a few, hit Select all then untick those.</div>`
     +`</div>`;
   const btn=host.querySelector('.msbtn'), panel=host.querySelector('.mspanel'),
@@ -282,8 +317,12 @@ function multisel(hostId, allLabel, noun, values, onChange){
   boxes.forEach(b=>b.addEventListener('change',sync));
   return host;
 }
-multisel('category','All categories','categories',cats,v=>{S.category=v;render()});
-multisel('city','All areas','areas',cities,v=>{S.city=v;render()});
+const scored=DATA.filter(d=>d.verdict!=='nomenu');
+const catCounts={},cityCounts={};
+scored.forEach(d=>{(d.category||[]).forEach(c=>catCounts[c]=(catCounts[c]||0)+1);
+  if(d.city)cityCounts[d.city]=(cityCounts[d.city]||0)+1});
+multisel('category','All categories','categories',cats,v=>{S.category=v;render()},catCounts);
+multisel('city','All areas','areas',cities,v=>{S.city=v;render()},cityCounts);
 document.addEventListener('click',e=>{
   if(e.target.closest('.ms'))return;
   document.querySelectorAll('.mspanel').forEach(p=>{p.hidden=true});
@@ -327,8 +366,10 @@ function card(d0){
   const courses=courseOrder(Object.keys(d.menu||{}).filter(c=>d.menu[c]&&d.menu[c].length));
   const orderLines=courses.map(c=>{
     const p=d.pick[c]; if(!p) return ''; const gl=g[p.dish]; const sr=srcOf(p);
-    return `<div class="oline"><span class="ocourse">${esc(nameOf(c))}</span><span class="odish">${esc(short(p.dish))}</span><span class="optprice">${money(p.price)}</span></div>`
+    const po=portionOf(p);
+    return `<div class="oline"><span class="ocourse">${esc(nameOf(c))}</span><span class="odish">${esc(short(p.dish))}${upgChip(p)}</span><span class="optprice">${money(p.price)}</span></div>`
       + (gl?`<div class="ogloss">${esc(gl)}</div>`:'')
+      + (po?`<div class="oportion">Portion: ${esc(po)}</div>`:'')
       + (sr?`<div class="osrc">Source: ${esc(sr)}</div>`:'');
   }).join('');
   const inc=(d.included||[]).length
@@ -340,9 +381,11 @@ function card(d0){
   const menuHtml=courses.map(c=>{
     const opts=d.menu[c].map((o,i)=>{
       const gl=g[o.dish]; const sr=srcOf(o);
-      return `<div class="opt"><span class="optname ${i===0?'best':''}">${i===0?'<span class="star">★</span> ':''}${esc(short(o.dish))}</span>`
+      const po=portionOf(o);
+      return `<div class="opt"><span class="optname ${i===0?'best':''}">${i===0?'<span class="star">★</span> ':''}${esc(short(o.dish))}${upgChip(o)}</span>`
         +`<span class="optprice">${money(o.price)}</span></div>`
         +(gl?`<div class="gl">${esc(gl)}</div>`:'')
+        +(po?`<div class="portion">Portion: ${esc(po)}</div>`:'')
         +(sr?`<div class="src">Source: ${esc(sr)}</div>`:'');
     }).join('');
     return `<div class="course"><div class="chdr">${esc(nameOf(c))} — choose one</div>${opts}</div>`;
@@ -354,9 +397,10 @@ function card(d0){
   const dayStrip = d.days
     ? `<div class="daystrip" title="Days this special is served">${DAYL.map((L,i)=>`<span class="dchip ${d.days.includes(i)?'on':''}">${L}</span>`).join('')}</div>`
     : `<div class="daystrip" title="The restaurant did not publish serving days"><span class="dnote" style="margin-left:0">Serving days not published — call ahead</span></div>`;
-  return `<article class="card">
+  const anchor=slug(d.restaurant+'-'+d.meal);
+  return `<article class="card" id="${anchor}">
    <div class="chead">
-     <div><h2 class="rname">${esc(d.restaurant)}</h2>
+     <div><h2 class="rname">${esc(d.restaurant)}<button class="alink" data-anchor="${anchor}" title="Copy a link to this restaurant" aria-label="Copy link to ${esc(d.restaurant)}">&#128279;</button></h2>
        <div>${catpills}</div>
        <div class="cuisine">${esc(d.cuisine)}</div>
        ${locLine}
@@ -365,7 +409,7 @@ function card(d0){
      <div class="tier"><div class="tierp">${money(d.tier)}</div><div class="tierm">${esc(d.meal)}${d.for2?' for 2':''}</div></div>
    </div>
    <div class="vrow">
-     <span class="verdict v-${d.verdict}">${ICON[d.verdict]} ${LABEL[d.verdict]}</span>
+     <span class="verdict v-${d.verdict}${d.confidence==='estimated'?' v-est':''}">${ICON[d.verdict]} ${esc(labelFor(d))}</span>
      <span class="confchip"><i class="dot d-${d.confidence}"></i>${esc(CONFSHORT[d.confidence])}</span>
    </div>
    <p class="blurb">${esc(d.blurb)}</p>
@@ -400,6 +444,7 @@ function card(d0){
         : d.verdict==='skip'
         ? `Even the priciest combination comes to <b>${money(d.best)}</b>, under the <b>${money(d.tier)}</b> you pay.`
         : `Order as recommended and it's <b>${money(d.best)}</b>; pick the cheapest option each course and it falls to <b>${money(d.worst)}</b>, below what you paid.`}</div>
+     ${(d.upgrades||[]).length?`<div class="upgnote"><b>Paid upgrade${d.upgrades.length>1?'s':''}:</b> ${d.upgrades.map(u=>esc(u.dish)+' (+'+money(u.supp)+')').join(', ')}. Not counted in the figures above.</div>`:''}
      ${d.courses_n>0&&d.courses_n<3?`<div class="barnote" style="margin-top:6px">Note: only ${d.courses_n} course${d.courses_n===1?'':'s'} ${d.courses_n===1?'was':'were'} published for this tier${d.courses_n===2?' — no dessert listed':''}.</div>`:''}
      ${d.best>d.tier*2?`<div class="barnote" style="margin-top:6px">The bar tops out at ${money(d.tier*2)} (twice what you pay); this menu runs past the end of it.</div>`:''}
    </div>
@@ -408,6 +453,15 @@ function card(d0){
 }
 
 document.getElementById('grid').addEventListener('click', e=>{
+  const a=e.target.closest('.alink');
+  if(a){
+    const url=location.origin+location.pathname+'#'+a.dataset.anchor;
+    const done=()=>{a.classList.add('done');a.innerHTML='&#10003;';
+      setTimeout(()=>{a.classList.remove('done');a.innerHTML='&#128279;'},1400)};
+    if(navigator.clipboard){navigator.clipboard.writeText(url).then(done).catch(()=>{location.hash=a.dataset.anchor})}
+    else{location.hash=a.dataset.anchor}
+    return;
+  }
   const btn=e.target.closest('.tabbtn');
   if(!btn) return;
   const cid=btn.closest('.tabs').dataset.card;

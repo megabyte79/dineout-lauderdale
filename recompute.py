@@ -22,6 +22,18 @@ DERIVED = ('pick', 'best', 'worst', 'median', 'spread', 'pct', 'pctbest',
            'verdict', 'n', 'low', 'high', 'confidence', 'courses_n')
 
 
+def net(o):
+    """What a dish is worth *toward the base price*.
+
+    A dish carrying a supplement costs extra on top of the prix fixe, so only
+    the difference counts. A $54 ribeye at +$15 contributes $39 of value
+    against the base price. This is the same arithmetic as comparing the meal
+    against (tier + supplement), just expressed per dish so the rest of the
+    scoring is unchanged.
+    """
+    return o['price'] - (o.get('supp') or 0)
+
+
 def verdict_of(tier, best, worst):
     """How the prix fixe compares to ordering the same dishes a la carte.
 
@@ -53,12 +65,12 @@ def recompute(e):
         return e
 
     for course in menu:
-        menu[course].sort(key=lambda o: -o['price'])
+        menu[course].sort(key=lambda o: -net(o))
 
-    # The highest-priced option in each course is the value pick.
+    # The best-value option in each course, after netting out any supplement.
     e['pick'] = {c: opts[0] for c, opts in menu.items() if opts}
-    best = sum(o['price'] for o in e['pick'].values())
-    worst = sum(min(o['price'] for o in opts) for opts in menu.values() if opts)
+    best = sum(net(o) for o in e['pick'].values())
+    worst = sum(min(net(o) for o in opts) for opts in menu.values() if opts)
 
     # Items that come with the meal rather than being chosen between.
     # 'choose' means the guest picks one of them; anything else means all are served.
